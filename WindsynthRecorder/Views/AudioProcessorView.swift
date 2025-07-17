@@ -386,12 +386,6 @@ struct AudioProcessorView: View {
             }
 
             HStack(spacing: 12) {
-                Button("批量分析音频") {
-                    batchAnalyzeFiles()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isBatchAnalyzing || fileManager.isProcessing)
-
                 if hasAnalyzedFiles {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("已分析: \(analyzedFilesCount)/\(fileManager.files.count)")
@@ -403,6 +397,10 @@ struct AudioProcessorView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                } else {
+                    Text("请先分析音频文件")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()

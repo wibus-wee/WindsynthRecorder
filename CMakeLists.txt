@@ -203,9 +203,9 @@ if(APPLE)
     )
 
     # 创建一个脚本来帮助集成到Xcode项目
-    configure_file(
-        "${CMAKE_SOURCE_DIR}/scripts/integrate_to_xcode.sh.in"
-        "${CMAKE_BINARY_DIR}/integrate_to_xcode.sh"
-        @ONLY
-    )
+    # configure_file(
+    #     "${CMAKE_SOURCE_DIR}/scripts/integrate_to_xcode.sh.in"
+    #     "${CMAKE_BINARY_DIR}/integrate_to_xcode.sh"
+    #     @ONLY
+    # )
 endif()

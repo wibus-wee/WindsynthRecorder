@@ -69,7 +69,7 @@ class AudioChainManager: ObservableObject {
         }
         
         // 创建 VST 管理器
-        vstManager = VSTManagerExample()
+        vstManager = VSTManagerExample.shared
         
         // 配置默认设置
         configureChain(with: chainConfig)

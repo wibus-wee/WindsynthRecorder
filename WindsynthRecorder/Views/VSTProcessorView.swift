@@ -10,7 +10,7 @@ import SwiftUI
 
 /// VST 处理器视图 - 临时实现
 struct VSTProcessorView: View {
-    @StateObject private var vstManager = VSTManagerExample()
+    @ObservedObject private var vstManager = VSTManagerExample.shared
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -168,28 +168,46 @@ struct PluginRowView: View {
             Spacer()
 
             VStack(spacing: 4) {
-                Button(action: {
-                    loadPlugin()
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 12))
-                        Text("加载")
-                            .font(.system(size: 11, weight: .medium))
+                if !isPluginLoaded {
+                    Button(action: {
+                        loadPlugin()
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 12))
+                            Text("加载")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.blue.opacity(0.1))
+                        .foregroundColor(.blue)
+                        .cornerRadius(6)
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.blue.opacity(0.1))
-                    .foregroundColor(.blue)
-                    .cornerRadius(6)
-                }
-                .buttonStyle(.plain)
-                .disabled(isPluginLoaded)
+                    .buttonStyle(.plain)
+                } else {
+                    VStack(spacing: 2) {
+                        Text("已加载")
+                            .font(.system(size: 10))
+                            .foregroundColor(.green)
 
-                if isPluginLoaded {
-                    Text("已加载")
-                        .font(.system(size: 10))
-                        .foregroundColor(.green)
+                        Button(action: {
+                            showPluginUI()
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "slider.horizontal.3")
+                                    .font(.system(size: 10))
+                                Text("打开UI")
+                                    .font(.system(size: 9, weight: .medium))
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(Color.orange.opacity(0.1))
+                            .foregroundColor(.orange)
+                            .cornerRadius(4)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
         }
@@ -200,15 +218,25 @@ struct PluginRowView: View {
     }
 
     private var isPluginLoaded: Bool {
-        vstManager.loadedPlugins.contains(plugin.name)
+        vstManager.loadedPlugins.contains(plugin.fileOrIdentifier)
     }
 
     private func loadPlugin() {
-        let success = vstManager.loadPlugin(named: plugin.name)
+        // 使用 fileOrIdentifier 而不是插件名称来加载插件
+        let success = vstManager.loadPlugin(named: plugin.fileOrIdentifier)
         if success {
-            print("✅ 成功加载插件: \(plugin.name)")
+            print("✅ 成功加载插件: \(plugin.name) (ID: \(plugin.fileOrIdentifier))")
         } else {
-            print("❌ 加载插件失败: \(plugin.name)")
+            print("❌ 加载插件失败: \(plugin.name) (ID: \(plugin.fileOrIdentifier))")
+        }
+    }
+
+    private func showPluginUI() {
+        if vstManager.hasPluginEditor(identifier: plugin.fileOrIdentifier) {
+            vstManager.showPluginEditor(identifier: plugin.fileOrIdentifier)
+            print("🎛️ 打开插件UI: \(plugin.name)")
+        } else {
+            print("⚠️ 插件没有UI界面: \(plugin.name)")
         }
     }
 }

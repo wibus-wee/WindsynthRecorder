@@ -68,6 +68,11 @@ bool audioProcessingChain_addPlugin(AudioProcessingChainHandle handle, VSTPlugin
 bool audioProcessingChain_removePlugin(AudioProcessingChainHandle handle, int index);
 void audioProcessingChain_clearPlugins(AudioProcessingChainHandle handle);
 
+// 插件编辑器管理
+bool audioProcessingChain_showPluginEditor(AudioProcessingChainHandle handle, int index);
+void audioProcessingChain_hidePluginEditor(AudioProcessingChainHandle handle, int index);
+bool audioProcessingChain_hasPluginEditor(AudioProcessingChainHandle handle, int index);
+
 // 插件实例
 void vstPluginInstance_destroy(VSTPluginInstanceHandle handle);
 

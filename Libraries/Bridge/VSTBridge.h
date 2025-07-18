@@ -111,6 +111,8 @@ bool vstPluginInstance_setState(VSTPluginInstanceHandle* handle, const void* dat
 
 // 编辑器
 bool vstPluginInstance_hasEditor(VSTPluginInstanceHandle* handle);
+void vstPluginInstance_showEditor(VSTPluginInstanceHandle* handle);
+void vstPluginInstance_hideEditor(VSTPluginInstanceHandle* handle);
 
 // ============================================================================
 // AudioProcessingChain C接口
@@ -155,6 +157,11 @@ bool audioProcessingChain_isMasterBypassed(AudioProcessingChainHandle* handle);
 // 性能监控
 void audioProcessingChain_getPerformanceStats(AudioProcessingChainHandle* handle, PerformanceStats_C* stats);
 void audioProcessingChain_resetPerformanceStats(AudioProcessingChainHandle* handle);
+
+// 插件编辑器管理
+bool audioProcessingChain_showPluginEditor(AudioProcessingChainHandle* handle, int index);
+void audioProcessingChain_hidePluginEditor(AudioProcessingChainHandle* handle, int index);
+bool audioProcessingChain_hasPluginEditor(AudioProcessingChainHandle* handle, int index);
 
 // 延迟补偿
 int audioProcessingChain_getTotalLatency(AudioProcessingChainHandle* handle);

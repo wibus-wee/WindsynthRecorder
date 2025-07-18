@@ -1,4 +1,5 @@
 #include "AudioProcessingChain.hpp"
+#include <iostream>
 
 namespace WindsynthVST {
 
@@ -142,20 +143,30 @@ void AudioProcessingChain::releaseResources() {
 }
 
 bool AudioProcessingChain::addPlugin(std::unique_ptr<VSTPluginInstance> plugin) {
+    std::cout << "[AudioProcessingChain] addPlugin: Starting plugin addition" << std::endl;
+
     if (!plugin) {
+        std::cout << "[AudioProcessingChain] addPlugin: Plugin is null" << std::endl;
         onError("尝试添加空插件");
         return false;
     }
-    
+
+    std::cout << "[AudioProcessingChain] addPlugin: Plugin is valid, acquiring lock" << std::endl;
     juce::ScopedLock sl(lock);
-    
+
+    std::cout << "[AudioProcessingChain] addPlugin: Creating ProcessingNode" << std::endl;
     auto node = std::make_unique<ProcessingNode>(std::move(plugin));
-    
+
     if (isPrepared) {
+        std::cout << "[AudioProcessingChain] addPlugin: Chain is prepared, preparing node" << std::endl;
         node->prepareToPlay(config.sampleRate, config.samplesPerBlock);
+    } else {
+        std::cout << "[AudioProcessingChain] addPlugin: Chain is not prepared, skipping node preparation" << std::endl;
     }
-    
+
+    std::cout << "[AudioProcessingChain] addPlugin: Adding node to chain" << std::endl;
     nodes.push_back(std::move(node));
+    std::cout << "[AudioProcessingChain] addPlugin: Plugin successfully added, total plugins: " << nodes.size() << std::endl;
     return true;
 }
 

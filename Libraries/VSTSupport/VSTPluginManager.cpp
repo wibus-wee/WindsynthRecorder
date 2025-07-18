@@ -1,4 +1,5 @@
 #include "VSTPluginManager.hpp"
+#include <iostream>
 
 namespace WindsynthVST {
 
@@ -244,13 +245,22 @@ VSTPluginInfo VSTPluginManager::getPluginInfo(const std::string& identifier) con
 }
 
 std::unique_ptr<VSTPluginInstance> VSTPluginManager::loadPlugin(const std::string& identifier) {
+    std::cout << "[VSTPluginManager] loadPlugin: Searching for plugin with identifier: " << identifier << std::endl;
+
     const auto& types = knownPluginList.getTypes();
+    std::cout << "[VSTPluginManager] loadPlugin: Total known plugins: " << types.size() << std::endl;
+
     for (const auto& desc : types) {
+        std::cout << "[VSTPluginManager] loadPlugin: Checking plugin - name: " << desc.name.toStdString()
+                  << ", fileOrIdentifier: " << desc.fileOrIdentifier.toStdString() << std::endl;
+
         if (desc.fileOrIdentifier.toStdString() == identifier) {
+            std::cout << "[VSTPluginManager] loadPlugin: Found matching plugin, loading..." << std::endl;
             return loadPlugin(VSTPluginInfo(desc));
         }
     }
 
+    std::cout << "[VSTPluginManager] loadPlugin: Plugin not found in known list" << std::endl;
     onError("找不到插件: " + identifier);
     return nullptr;
 }

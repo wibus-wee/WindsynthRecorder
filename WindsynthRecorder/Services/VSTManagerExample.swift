@@ -54,18 +54,20 @@ struct VSTPluginInfo {
     }
 }
 
-/// VST 管理器 - 演示如何使用 JUCE VST 静态库
+/// VST 管理器 - 演示如何使用 JUCE VST 静态库 (单例模式)
 class VSTManagerExample: ObservableObject {
+    static let shared = VSTManagerExample()
+
     @Published var availablePlugins: [VSTPluginInfo] = []
     @Published var loadedPlugins: [String] = []
     @Published var isScanning = false
     @Published var scanProgress: Float = 0.0
     @Published var errorMessage: String?
-    
+
     private var pluginManager: VSTPluginManagerHandle?
     private var processingChain: AudioProcessingChainHandle?
-    
-    init() {
+
+    private init() {
         setupVSTManager()
     }
     
@@ -216,28 +218,28 @@ class VSTManagerExample: ObservableObject {
     
     // MARK: - 插件加载和管理
     
-    func loadPlugin(named name: String) -> Bool {
+    func loadPlugin(named identifier: String) -> Bool {
         guard let manager = pluginManager,
               let chain = processingChain else {
             errorMessage = "Managers not initialized"
             return false
         }
-        
-        let pluginInstance = vstPluginManager_loadPlugin(manager, name)
+
+        let pluginInstance = vstPluginManager_loadPlugin(manager, identifier)
         guard let instance = pluginInstance else {
-            errorMessage = "Failed to load plugin: \(name)"
+            errorMessage = "Failed to load plugin: \(identifier)"
             return false
         }
-        
+
         let success = audioProcessingChain_addPlugin(chain, instance)
         if success {
-            loadedPlugins.append(name)
-            print("Successfully loaded plugin: \(name)")
+            loadedPlugins.append(identifier)
+            print("Successfully loaded plugin with identifier: \(identifier)")
         } else {
-            errorMessage = "Failed to add plugin to processing chain: \(name)"
+            errorMessage = "Failed to add plugin to processing chain: \(identifier)"
             vstPluginInstance_destroy(instance)
         }
-        
+
         return success
     }
     
@@ -264,21 +266,60 @@ class VSTManagerExample: ObservableObject {
         print("Cleared all plugins")
     }
     
+    // MARK: - 插件编辑器管理
+
+    func hasPluginEditor(identifier: String) -> Bool {
+        // 查找对应的插件实例
+        // 这里需要实现插件实例的管理和查找
+        // 暂时返回true，表示大部分VST插件都有编辑器
+        return true
+    }
+
+    func showPluginEditor(identifier: String) {
+        print("显示插件编辑器: \(identifier)")
+
+        // 查找对应的插件实例
+        guard let chain = processingChain else {
+            print("⚠️ 处理链未初始化")
+            return
+        }
+
+        // 查找插件在loadedPlugins中的索引
+        guard let pluginIndex = loadedPlugins.firstIndex(of: identifier) else {
+            print("⚠️ 未找到已加载的插件: \(identifier)")
+            return
+        }
+
+        // 调用C接口显示插件编辑器
+        let success = audioProcessingChain_showPluginEditor(chain, Int32(pluginIndex))
+        if success {
+            print("✅ 成功打开插件编辑器: \(identifier)")
+        } else {
+            print("❌ 无法打开插件编辑器: \(identifier)")
+        }
+    }
+
+    func hidePluginEditor(identifier: String) {
+        print("隐藏插件编辑器: \(identifier)")
+        // 这里应该调用C接口隐藏插件编辑器
+        // vstPluginInstance_hideEditor(pluginInstance)
+    }
+
     // MARK: - 音频处理配置
-    
+
     func configureAudioProcessing(sampleRate: Double, samplesPerBlock: Int, numChannels: Int) {
         guard let chain = processingChain else { return }
-        
+
         var config = ProcessingChainConfig_C()
         config.sampleRate = sampleRate
         config.samplesPerBlock = Int32(samplesPerBlock)
         config.numInputChannels = Int32(numChannels)
         config.numOutputChannels = Int32(numChannels)
         config.enableMidi = true
-        
+
         audioProcessingChain_configure(chain, &config)
         audioProcessingChain_prepareToPlay(chain, sampleRate, Int32(samplesPerBlock))
-        
+
         print("Configured audio processing: \(sampleRate)Hz, \(samplesPerBlock) samples, \(numChannels) channels")
     }
 

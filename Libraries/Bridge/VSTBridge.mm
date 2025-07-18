@@ -5,6 +5,13 @@
 #include <string>
 #include <cstring>
 
+// 避免与 macOS 系统头文件的命名冲突
+#define Point CarbonPoint
+#define Component CarbonComponent
+#import <Foundation/Foundation.h>
+#undef Point
+#undef Component
+
 using namespace WindsynthVST;
 
 // 内部结构体定义
@@ -18,6 +25,7 @@ struct VSTPluginManagerHandle {
 
 struct VSTPluginInstanceHandle {
     std::unique_ptr<VSTPluginInstance> instance;
+    juce::DocumentWindow* editorWindow = nullptr;
 };
 
 struct AudioProcessingChainHandle {
@@ -151,20 +159,30 @@ int vstPluginManager_findPluginByName(VSTPluginManagerHandle* handle, const char
 
 VSTPluginInstanceHandle* vstPluginManager_loadPlugin(VSTPluginManagerHandle* handle, const char* identifier) {
     if (!handle || !handle->manager || !identifier) {
+        NSLog(@"[VSTBridge] vstPluginManager_loadPlugin: Invalid parameters - handle=%p, manager=%p, identifier=%s",
+              handle, handle ? handle->manager.get() : nullptr, identifier ? identifier : "null");
         return nullptr;
     }
-    
+
+    NSLog(@"[VSTBridge] vstPluginManager_loadPlugin: Loading plugin with identifier: %s", identifier);
+
     try {
         auto instance = handle->manager->loadPlugin(identifier);
         if (instance) {
+            NSLog(@"[VSTBridge] vstPluginManager_loadPlugin: Plugin instance created successfully");
             auto instanceHandle = new VSTPluginInstanceHandle();
             instanceHandle->instance = std::move(instance);
+            NSLog(@"[VSTBridge] vstPluginManager_loadPlugin: Plugin handle created, returning success");
             return instanceHandle;
+        } else {
+            NSLog(@"[VSTBridge] vstPluginManager_loadPlugin: Failed to create plugin instance");
         }
+    } catch (const std::exception& e) {
+        NSLog(@"[VSTBridge] vstPluginManager_loadPlugin: Exception caught: %s", e.what());
     } catch (...) {
-        // 忽略异常
+        NSLog(@"[VSTBridge] vstPluginManager_loadPlugin: Unknown exception caught");
     }
-    
+
     return nullptr;
 }
 
@@ -315,6 +333,36 @@ bool vstPluginInstance_hasEditor(VSTPluginInstanceHandle* handle) {
     return false;
 }
 
+void vstPluginInstance_showEditor(VSTPluginInstanceHandle* handle) {
+    if (handle && handle->instance && handle->instance->hasEditor()) {
+        // 创建编辑器窗口
+        auto* editor = handle->instance->createEditor();
+        if (editor) {
+            // 创建一个简单的窗口来承载编辑器
+            auto window = std::make_unique<juce::DocumentWindow>(
+                handle->instance->getName() + " Editor",
+                juce::Colours::lightgrey,
+                juce::DocumentWindow::allButtons
+            );
+
+            window->setContentOwned(editor, true);
+            window->setResizable(editor->isResizable(), false);
+            window->centreWithSize(editor->getWidth(), editor->getHeight());
+            window->setVisible(true);
+
+            // 存储窗口引用（简化实现，实际应该管理窗口生命周期）
+            handle->editorWindow = window.release();
+        }
+    }
+}
+
+void vstPluginInstance_hideEditor(VSTPluginInstanceHandle* handle) {
+    if (handle && handle->editorWindow) {
+        delete handle->editorWindow;
+        handle->editorWindow = nullptr;
+    }
+}
+
 // ============================================================================
 // AudioProcessingChain C接口实现
 // ============================================================================
@@ -401,12 +449,51 @@ void audioProcessingChain_releaseResources(AudioProcessingChainHandle* handle) {
 }
 
 bool audioProcessingChain_addPlugin(AudioProcessingChainHandle* handle, VSTPluginInstanceHandle* plugin) {
-    if (handle && handle->chain && plugin && plugin->instance) {
-        // 注意：这里我们需要转移所有权，但C接口不太适合这样做
-        // 在实际实现中，可能需要重新设计这个接口
-        return false; // 暂时返回false，需要重新设计
+    NSLog(@"[VSTBridge] audioProcessingChain_addPlugin: Starting plugin addition");
+
+    if (!handle) {
+        NSLog(@"[VSTBridge] audioProcessingChain_addPlugin: handle is null");
+        return false;
     }
-    return false;
+    if (!handle->chain) {
+        NSLog(@"[VSTBridge] audioProcessingChain_addPlugin: handle->chain is null");
+        return false;
+    }
+    if (!plugin) {
+        NSLog(@"[VSTBridge] audioProcessingChain_addPlugin: plugin is null");
+        return false;
+    }
+    if (!plugin->instance) {
+        NSLog(@"[VSTBridge] audioProcessingChain_addPlugin: plugin->instance is null");
+        return false;
+    }
+
+    NSLog(@"[VSTBridge] audioProcessingChain_addPlugin: All parameters valid, attempting to add plugin");
+
+    try {
+        // 转移插件实例的所有权到处理链
+        std::unique_ptr<VSTPluginInstance> pluginPtr = std::move(plugin->instance);
+        NSLog(@"[VSTBridge] audioProcessingChain_addPlugin: Plugin ownership transferred, calling chain->addPlugin");
+
+        bool success = handle->chain->addPlugin(std::move(pluginPtr));
+        NSLog(@"[VSTBridge] audioProcessingChain_addPlugin: chain->addPlugin returned: %s", success ? "true" : "false");
+
+        if (success) {
+            // 清空插件句柄中的实例指针，因为所有权已经转移
+            plugin->instance.reset();
+            NSLog(@"[VSTBridge] audioProcessingChain_addPlugin: Plugin successfully added to chain");
+        } else {
+            NSLog(@"[VSTBridge] audioProcessingChain_addPlugin: Failed to add plugin to chain");
+        }
+
+        return success;
+    } catch (const std::exception& e) {
+        NSLog(@"[VSTBridge] audioProcessingChain_addPlugin: Exception caught: %s", e.what());
+        return false;
+    } catch (...) {
+        NSLog(@"[VSTBridge] audioProcessingChain_addPlugin: Unknown exception caught");
+        return false;
+    }
 }
 
 int audioProcessingChain_getNumPlugins(AudioProcessingChainHandle* handle) {
@@ -460,5 +547,98 @@ bool audioProcessingChain_removePlugin(AudioProcessingChainHandle* handle, int i
 void audioProcessingChain_clearPlugins(AudioProcessingChainHandle* handle) {
     if (handle && handle->chain) {
         handle->chain->clearPlugins();
+    }
+}
+
+// ============================================================================
+// AudioProcessingChain 插件编辑器管理
+// ============================================================================
+
+bool audioProcessingChain_showPluginEditor(AudioProcessingChainHandle* handle, int index) {
+    if (!handle || !handle->chain) {
+        NSLog(@"[VSTBridge] audioProcessingChain_showPluginEditor: Invalid handle");
+        return false;
+    }
+
+    NSLog(@"[VSTBridge] audioProcessingChain_showPluginEditor: Attempting to show editor for plugin at index %d", index);
+
+    try {
+        // 获取指定索引的节点
+        auto* node = handle->chain->getNode(index);
+        if (!node) {
+            NSLog(@"[VSTBridge] audioProcessingChain_showPluginEditor: Node at index %d not found", index);
+            return false;
+        }
+
+        // 获取插件实例
+        auto* plugin = node->getPlugin();
+        if (!plugin) {
+            NSLog(@"[VSTBridge] audioProcessingChain_showPluginEditor: Plugin at index %d not found", index);
+            return false;
+        }
+
+        // 检查插件是否有编辑器
+        if (!plugin->hasEditor()) {
+            NSLog(@"[VSTBridge] audioProcessingChain_showPluginEditor: Plugin at index %d has no editor", index);
+            return false;
+        }
+
+        // 创建编辑器
+        auto* editor = plugin->createEditor();
+        if (!editor) {
+            NSLog(@"[VSTBridge] audioProcessingChain_showPluginEditor: Failed to create editor for plugin at index %d", index);
+            return false;
+        }
+
+        // 创建窗口来承载编辑器
+        auto window = std::make_unique<juce::DocumentWindow>(
+            plugin->getName() + " Editor",
+            juce::Colours::lightgrey,
+            juce::DocumentWindow::allButtons
+        );
+
+        window->setContentOwned(editor, true);
+        window->setResizable(editor->isResizable(), false);
+        window->centreWithSize(editor->getWidth(), editor->getHeight());
+        window->setVisible(true);
+
+        // TODO: 需要管理窗口的生命周期，这里暂时泄漏窗口
+        window.release();
+
+        NSLog(@"[VSTBridge] audioProcessingChain_showPluginEditor: Successfully opened editor for plugin at index %d", index);
+        return true;
+
+    } catch (const std::exception& e) {
+        NSLog(@"[VSTBridge] audioProcessingChain_showPluginEditor: Exception: %s", e.what());
+        return false;
+    } catch (...) {
+        NSLog(@"[VSTBridge] audioProcessingChain_showPluginEditor: Unknown exception");
+        return false;
+    }
+}
+
+void audioProcessingChain_hidePluginEditor(AudioProcessingChainHandle* handle, int index) {
+    if (!handle || !handle->chain) {
+        return;
+    }
+
+    NSLog(@"[VSTBridge] audioProcessingChain_hidePluginEditor: Hiding editor for plugin at index %d", index);
+    // TODO: 实现编辑器窗口的隐藏逻辑
+    // 需要维护一个窗口映射表来管理编辑器窗口
+}
+
+bool audioProcessingChain_hasPluginEditor(AudioProcessingChainHandle* handle, int index) {
+    if (!handle || !handle->chain) {
+        return false;
+    }
+
+    try {
+        auto* node = handle->chain->getNode(index);
+        if (!node) return false;
+
+        auto* plugin = node->getPlugin();
+        return plugin ? plugin->hasEditor() : false;
+    } catch (...) {
+        return false;
     }
 }

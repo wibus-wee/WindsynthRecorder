@@ -6,8 +6,25 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		38C0E2A72E29583500F381CF /* libWindsynthVSTCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 38C0E2A62E29583500F381CF /* libWindsynthVSTCore.a */; };
+		38C0E3DA2E2A11B900F381CF /* libc++.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 38C0E3D92E2A11B900F381CF /* libc++.tbd */; };
+		38C0E3DC2E2A11BE00F381CF /* AudioUnit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38C0E3DB2E2A11BE00F381CF /* AudioUnit.framework */; };
+		38C0E3DE2E2A11C300F381CF /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38C0E3DD2E2A11C300F381CF /* AudioToolbox.framework */; };
+		38C0E3E02E2A11C700F381CF /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38C0E3DF2E2A11C700F381CF /* CoreAudio.framework */; };
+		38C0E3E22E2A11CB00F381CF /* CoreMIDI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38C0E3E12E2A11CB00F381CF /* CoreMIDI.framework */; };
+		38C0E3E42E2A11D200F381CF /* Accelerate.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38C0E3E32E2A11D200F381CF /* Accelerate.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		383B542E2D689F2A00E100B0 /* WindsynthRecorder.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WindsynthRecorder.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		38C0E2A62E29583500F381CF /* libWindsynthVSTCore.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libWindsynthVSTCore.a; path = build/lib/libWindsynthVSTCore.a; sourceTree = "<group>"; };
+		38C0E3D92E2A11B900F381CF /* libc++.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = "libc++.tbd"; path = "usr/lib/libc++.tbd"; sourceTree = SDKROOT; };
+		38C0E3DB2E2A11BE00F381CF /* AudioUnit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioUnit.framework; path = System/Library/Frameworks/AudioUnit.framework; sourceTree = SDKROOT; };
+		38C0E3DD2E2A11C300F381CF /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
+		38C0E3DF2E2A11C700F381CF /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = System/Library/Frameworks/CoreAudio.framework; sourceTree = SDKROOT; };
+		38C0E3E12E2A11CB00F381CF /* CoreMIDI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMIDI.framework; path = System/Library/Frameworks/CoreMIDI.framework; sourceTree = SDKROOT; };
+		38C0E3E32E2A11D200F381CF /* Accelerate.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Accelerate.framework; path = System/Library/Frameworks/Accelerate.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -36,6 +53,13 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				38C0E3E42E2A11D200F381CF /* Accelerate.framework in Frameworks */,
+				38C0E3E22E2A11CB00F381CF /* CoreMIDI.framework in Frameworks */,
+				38C0E3E02E2A11C700F381CF /* CoreAudio.framework in Frameworks */,
+				38C0E3DE2E2A11C300F381CF /* AudioToolbox.framework in Frameworks */,
+				38C0E3DC2E2A11BE00F381CF /* AudioUnit.framework in Frameworks */,
+				38C0E3DA2E2A11B900F381CF /* libc++.tbd in Frameworks */,
+				38C0E2A72E29583500F381CF /* libWindsynthVSTCore.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -46,6 +70,7 @@
 			isa = PBXGroup;
 			children = (
 				383B54302D689F2A00E100B0 /* WindsynthRecorder */,
+				38C0E2A52E29583500F381CF /* Frameworks */,
 				383B542F2D689F2A00E100B0 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -56,6 +81,20 @@
 				383B542E2D689F2A00E100B0 /* WindsynthRecorder.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		38C0E2A52E29583500F381CF /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				38C0E3E32E2A11D200F381CF /* Accelerate.framework */,
+				38C0E3E12E2A11CB00F381CF /* CoreMIDI.framework */,
+				38C0E3DF2E2A11C700F381CF /* CoreAudio.framework */,
+				38C0E3DD2E2A11C300F381CF /* AudioToolbox.framework */,
+				38C0E3DB2E2A11BE00F381CF /* AudioUnit.framework */,
+				38C0E3D92E2A11B900F381CF /* libc++.tbd */,
+				38C0E2A62E29583500F381CF /* libWindsynthVSTCore.a */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -263,6 +302,10 @@
 				DEVELOPMENT_ASSET_PATHS = "\"WindsynthRecorder/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/JUCE/modules/**",
+					"$(SRCROOT)/WindsynthRecorder/Libraries/VSTSupport/**",
+				);
 				INFOPLIST_FILE = WindsynthRecorder/Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -277,14 +320,23 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/build/lib",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"-DJUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1",
+					"-lc++",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = dev.wibus.WindsynthRecorder;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = macosx;
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "WindsynthRecorder/WindsynthRecorder-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				XROS_DEPLOYMENT_TARGET = 2.2;
 			};
@@ -301,6 +353,10 @@
 				DEVELOPMENT_ASSET_PATHS = "\"WindsynthRecorder/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/JUCE/modules/**",
+					"$(SRCROOT)/WindsynthRecorder/Libraries/VSTSupport/**",
+				);
 				INFOPLIST_FILE = WindsynthRecorder/Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -315,14 +371,23 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/build/lib",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"-DJUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1",
+					"-lc++",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = dev.wibus.WindsynthRecorder;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = macosx;
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "WindsynthRecorder/WindsynthRecorder-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				XROS_DEPLOYMENT_TARGET = 2.2;
 			};

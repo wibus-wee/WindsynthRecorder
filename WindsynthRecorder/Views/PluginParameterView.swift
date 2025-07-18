@@ -46,6 +46,7 @@ struct PluginParameterView: View {
                 }
             }
         }
+        .frame(minWidth: 600, minHeight: 500)
         .onAppear {
             loadPluginParameters()
         }

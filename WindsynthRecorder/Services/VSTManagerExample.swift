@@ -289,7 +289,8 @@ class VSTManagerExample: ObservableObject {
             return false
         }
 
-        return audioProcessingChain_processAudio(chain, buffer, Int32(numSamples), Int32(numChannels))
+//        return audioProcessingChain_processAudio(chain, buffer, Int32(numSamples), Int32(numChannels))
+        return false
     }
 
     /// 检查是否有已加载的插件可以进行实时处理

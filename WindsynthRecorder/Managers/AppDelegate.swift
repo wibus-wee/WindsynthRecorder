@@ -64,8 +64,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     
     /// 应用完成启动
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // 禁用窗口状态恢复
+        UserDefaults.standard.register(defaults: ["NSQuitAlwaysKeepsWindows": false])
+
         // 确保应用状态正确初始化
         AppState.shared.resetInitializationState()
+    }
+
+    /// 禁用窗口状态恢复
+    func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
+        return false
     }
     
     /// 应用即将终止

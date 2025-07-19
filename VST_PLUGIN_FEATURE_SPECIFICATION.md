@@ -76,10 +76,10 @@ WindsynthRecorder/
 │       ├── VSTBridge.mm
 │       └── VSTBridge.swift
 ├── Services/                    # 现有服务目录
-│   ├── VSTPluginService.swift   # VST 插件服务（新增）
-│   ├── AudioChainManager.swift  # 音频链管理（新增）
-│   ├── RealtimeAudioService.swift # 实时音频服务（新增）
-│   ├── AudioRecorder.swift      # 现有录音服务（需修改）
+│   ├── VSTManagerExample.swift  # VST 插件管理服务（已实现）
+│   ├── JUCEAudioEngine.swift    # 核心音频引擎（已实现）
+│   ├── AudioMixerService.swift  # 音频混音台服务（已实现）
+│   ├── AudioRecorder.swift      # 现有录音服务（已集成VST）
 │   └── AudioProcessor.swift     # 现有音频处理（需修改）
 └── Views/                       # 现有视图目录
     ├── VSTPluginBrowser.swift   # 插件浏览器（新增）
@@ -295,12 +295,9 @@ WindsynthRecorder/
 │       ├── VSTBridge.mm         ✅ 完成（完整的C++/Swift桥接实现）
 │       └── VSTBridge.swift      ❌ 未实现（使用直接@_silgen_name调用）
 ├── Services/
-│   ├── VSTManagerExample.swift  ✅ 完成（相当于VSTPluginService）
+│   ├── VSTManagerExample.swift  ✅ 完成（VST插件管理服务）
 │   ├── JUCEAudioEngine.swift    ✅ 完成（核心音频引擎，集成RealtimeProcessor）
 │   ├── AudioMixerService.swift  ✅ 完成（实时音频处理服务，委托给JUCEAudioEngine）
-│   ├── AudioChainManager.swift  ✅ 完成（使用VSTManagerExample的共享处理链）
-│   ├── RealtimeAudioManager.swift ✅ 完成（实时音频管理器）
-│   ├── VSTPluginService.swift   ⚠️ 存在但已废弃（功能转移到VSTManagerExample）
 │   ├── AudioRecorder.swift      ✅ 现有（已集成VST支持）
 │   └── AudioProcessor.swift     ✅ 现有
 ├── Views/
@@ -311,11 +308,9 @@ WindsynthRecorder/
 │   ├── AudioProcessorView.swift ✅ 现有（音频处理和分析界面）
 │   ├── VSTPluginBrowser.swift   ❌ 未实现（功能集成在VSTProcessorView中）
 │   └── AudioChainEditor.swift   ❌ 未实现（功能集成在AudioMixerView中）
-├── Tests/                       ✅ 完整的测试套件
+├── Tests/                       ✅ 测试套件（已清理）
 │   ├── VSTTest.cpp              ✅ 基础VST功能测试
-│   ├── IzotopePluginTest.cpp    ✅ iZotope插件专项测试
-│   ├── VSTServer.cpp            ✅ VST服务器测试工具
-│   └── VSTLibraryMain.cpp       ✅ 库测试主程序
+│   └── IzotopePluginTest.cpp    ✅ iZotope插件专项测试
 └── 构建系统
     ├── CMakeLists.txt           ✅ 完整的CMake配置
     ├── Makefile                 ✅ 自动生成

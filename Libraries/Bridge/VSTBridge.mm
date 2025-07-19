@@ -1,5 +1,5 @@
 #include "VSTBridge.h"
-#include "../VSTSupport/JuceIncludes.h"
+#include <JuceHeader.h>
 #include "../VSTSupport/VSTPluginManager.hpp"
 #include "../VSTSupport/AudioProcessingChain.hpp"
 #include "../VSTSupport/RealtimeProcessor.hpp"

@@ -11,10 +11,7 @@ import SwiftUI
 struct WindsynthRecorderApp: App {
 
     init() {
-        // 启动实时音频处理
-        Task { @MainActor in
-            RealtimeAudioManager.shared.start()
-        }
+        // VST 音频处理会在需要时自动启动
     }
 
     var body: some Scene {

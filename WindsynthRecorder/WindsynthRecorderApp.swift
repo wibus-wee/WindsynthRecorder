@@ -10,38 +10,46 @@ import SwiftUI
 @main
 struct WindsynthRecorderApp: App {
     @StateObject private var windowManager = WindowManager.shared
-    @State private var showStartupWindow = true
+    @StateObject private var appState = AppState.shared
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     init() {
         // VST 音频处理会在需要时自动启动
     }
 
     var body: some Scene {
-        // 启动窗口 - 独立窗口
+        // 启动窗口 - 仅在未初始化时显示
         Window("WindsynthRecorder Startup", id: "startup") {
-            StartupInitializationViewWrapper(onComplete: {
-                // 启动完成回调
-                DispatchQueue.main.async {
-                    showStartupWindow = false
-                    // 关闭启动窗口
-                    if let startupWindow = NSApplication.shared.windows.first(where: { $0.identifier?.rawValue == "startup" }) {
-                        startupWindow.close()
+            if !appState.isInitialized {
+                StartupInitializationViewWrapper(onComplete: {
+                    // 启动完成回调
+                    DispatchQueue.main.async {
+                        // 标记应用已初始化
+                        appState.markAsInitialized()
+                        // 关闭启动窗口
+                        if let startupWindow = NSApplication.shared.windows.first(where: { $0.identifier?.rawValue == "startup" }) {
+                            startupWindow.close()
+                        }
+                    }
+                })
+                .environmentObject(windowManager)
+                .environmentObject(appState)
+                .onAppear {
+                    // 隐藏启动窗口的标题栏按钮
+                    DispatchQueue.main.async {
+                        if let startupWindow = NSApplication.shared.windows.first(where: { $0.identifier?.rawValue == "startup" }) {
+                            startupWindow.standardWindowButton(.closeButton)?.isHidden = true
+                            startupWindow.standardWindowButton(.miniaturizeButton)?.isHidden = true
+                            startupWindow.standardWindowButton(.zoomButton)?.isHidden = true
+                            startupWindow.titleVisibility = .hidden
+                            startupWindow.center()
+                            startupWindow.makeKeyAndOrderFront(nil)
+                        }
                     }
                 }
-            })
-            .environmentObject(windowManager)
-            .onAppear {
-                // 隐藏启动窗口的标题栏按钮
-                DispatchQueue.main.async {
-                    if let startupWindow = NSApplication.shared.windows.first(where: { $0.identifier?.rawValue == "startup" }) {
-                        startupWindow.standardWindowButton(.closeButton)?.isHidden = true
-                        startupWindow.standardWindowButton(.miniaturizeButton)?.isHidden = true
-                        startupWindow.standardWindowButton(.zoomButton)?.isHidden = true
-                        startupWindow.titleVisibility = .hidden
-                        startupWindow.center()
-                        startupWindow.makeKeyAndOrderFront(nil)
-                    }
-                }
+            } else {
+                // 已初始化时显示空视图，窗口不会显示
+                EmptyView()
             }
         }
         .windowStyle(.hiddenTitleBar)
@@ -49,10 +57,11 @@ struct WindsynthRecorderApp: App {
         .defaultSize(width: 520, height: 300)
         .defaultPosition(.center)
 
-        // 主窗口 - 独立窗口
+        // 主窗口 - 在初始化完成后可用
         Window("WindsynthRecorder", id: "main") {
             ContentView()
                 .environmentObject(windowManager)
+                .environmentObject(appState)
                 .onAppear {
                     // 确保主窗口正确设置
                     DispatchQueue.main.async {
@@ -194,6 +203,7 @@ struct WindsynthRecorderApp: App {
 struct StartupInitializationViewWrapper: View {
     let onComplete: () -> Void
     @Environment(\.openWindow) private var openWindow
+    @EnvironmentObject private var appState: AppState
 
     var body: some View {
         StartupInitializationView {

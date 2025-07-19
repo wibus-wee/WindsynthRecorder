@@ -8,6 +8,27 @@
 import SwiftUI
 import Combine
 
+/// 应用状态管理器 - 管理应用的初始化状态
+@MainActor
+class AppState: ObservableObject {
+    static let shared = AppState()
+
+    /// 应用是否已完成初始化（每次启动重置，不持久化）
+    @Published var isInitialized = false
+
+    private init() {}
+
+    /// 标记应用已完成初始化
+    func markAsInitialized() {
+        isInitialized = true
+    }
+
+    /// 重置初始化状态（用于测试或特殊情况）
+    func resetInitializationState() {
+        isInitialized = false
+    }
+}
+
 /// 窗口管理器 - 统一管理应用中的所有窗口状态
 @MainActor
 class WindowManager: ObservableObject {
@@ -88,11 +109,17 @@ class WindowManager: ObservableObject {
                 mainWindow.makeKeyAndOrderFront(nil)
                 NSApplication.shared.activate(ignoringOtherApps: true)
             } else {
-                // 如果主窗口不存在，创建一个新的
-                // 这通常不应该发生，因为主窗口应该在应用启动时就存在
-                print("Warning: Main window not found")
+                // 如果主窗口不存在，尝试通过 SwiftUI 的 openWindow 来创建
+                // 这种情况可能发生在应用刚启动或所有窗口都被关闭后
+                print("Main window not found - will be created by SwiftUI Scene")
+                NSApplication.shared.activate(ignoringOtherApps: true)
             }
         }
+    }
+
+    /// 检查主窗口是否存在
+    var isMainWindowOpen: Bool {
+        return NSApplication.shared.windows.contains { $0.identifier?.rawValue == "main" }
     }
 
     /// 打开音频混音台窗口

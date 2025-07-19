@@ -577,8 +577,12 @@ struct ProfessionalPluginRowView: View {
     }
 
     private func unloadPlugin() {
-        // 这里需要添加卸载插件的功能
-        print("🔄 禁用插件: \(plugin.name)")
+        let success = vstManager.unloadPlugin(identifier: plugin.fileOrIdentifier)
+        if success {
+            print("✅ 成功禁用插件: \(plugin.name)")
+        } else {
+            print("❌ 禁用插件失败: \(plugin.name)")
+        }
     }
 
     private func showPluginUI() {

@@ -40,6 +40,10 @@ public:
     bool start();
     void stop();
     bool isRunning() const { return running; }
+
+    // 音频传输源
+    void setAudioTransportSource(juce::AudioTransportSource* transportSource);
+    void clearAudioTransportSource();
     
     // 插件链管理
     void setProcessingChain(std::shared_ptr<AudioProcessingChain> chain);
@@ -161,6 +165,9 @@ private:
     std::vector<float> latencyTestSignal;
     int latencyTestPosition = 0;
     bool latencyTestActive = false;
+
+    // 音频传输源
+    juce::AudioTransportSource* audioTransportSource = nullptr;
     
     // 内部方法
     void processAudioBlock(const float* const* inputChannelData,

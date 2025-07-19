@@ -37,28 +37,42 @@ void RealtimeProcessor::configure(const RealtimeProcessorConfig& newConfig) {
 
 bool RealtimeProcessor::initialize() {
     try {
+        std::cout << "[RealtimeProcessor] Initializing with " << config.numInputChannels << " inputs, " << config.numOutputChannels << " outputs" << std::endl;
+
         // 初始化音频设备管理器
         auto result = deviceManager->initialiseWithDefaultDevices(config.numInputChannels, config.numOutputChannels);
-        
+
         if (result.isNotEmpty()) {
+            std::cout << "[RealtimeProcessor] Device initialization failed: " << result.toStdString() << std::endl;
             onError("音频设备初始化失败: " + result.toStdString());
             return false;
         }
-        
+
         // 设置音频设备设置
         auto* device = deviceManager->getCurrentAudioDevice();
         if (device) {
+            std::cout << "[RealtimeProcessor] Current device: " << device->getName().toStdString() << std::endl;
+
             auto setup = device->getActiveInputChannels();
             setup.setRange(0, config.numInputChannels, true);
-            
+
             auto outputSetup = device->getActiveOutputChannels();
             outputSetup.setRange(0, config.numOutputChannels, true);
-            
-            device->open(setup, outputSetup, config.sampleRate, config.bufferSize);
+
+            auto result = device->open(setup, outputSetup, config.sampleRate, config.bufferSize);
+            if (result.isNotEmpty()) {
+                std::cout << "[RealtimeProcessor] Device open failed: " << result.toStdString() << std::endl;
+                return false;
+            }
+            std::cout << "[RealtimeProcessor] Device opened successfully" << std::endl;
+        } else {
+            std::cout << "[RealtimeProcessor] No current audio device!" << std::endl;
+            return false;
         }
-        
+
         return true;
     } catch (const std::exception& e) {
+        std::cout << "[RealtimeProcessor] Exception during initialization: " << e.what() << std::endl;
         onError("音频设备初始化异常: " + std::string(e.what()));
         return false;
     }
@@ -92,11 +106,24 @@ bool RealtimeProcessor::start() {
         }
         
         // 启动音频回调
+        std::cout << "[RealtimeProcessor] Adding audio callback..." << std::endl;
         deviceManager->addAudioCallback(this);
-        
+
+        // 启动音频设备
+        auto* device = deviceManager->getCurrentAudioDevice();
+        if (device && device->isOpen()) {
+            std::cout << "[RealtimeProcessor] Starting audio device..." << std::endl;
+            device->start(this);  // 这是关键！启动音频流
+            std::cout << "[RealtimeProcessor] Audio device started successfully" << std::endl;
+        } else {
+            std::cout << "[RealtimeProcessor] Device is not open!" << std::endl;
+            return false;
+        }
+
         running = true;
         resetStats();
-        
+
+        std::cout << "[RealtimeProcessor] Start completed successfully" << std::endl;
         return true;
     } catch (const std::exception& e) {
         onError("实时处理器启动异常: " + std::string(e.what()));
@@ -116,16 +143,31 @@ void RealtimeProcessor::stop() {
         stopRecording();
     }
     
+    // 停止音频设备
+    auto* device = deviceManager->getCurrentAudioDevice();
+    if (device) {
+        device->stop();
+        std::cout << "[RealtimeProcessor] Audio device stopped" << std::endl;
+    }
+
     // 移除音频回调
     deviceManager->removeAudioCallback(this);
-    
+
     // 释放插件链资源
     if (processingChain) {
         processingChain->releaseResources();
     }
-    
+
     // 关闭音频设备
     deviceManager->closeAudioDevice();
+}
+
+void RealtimeProcessor::setAudioTransportSource(juce::AudioTransportSource* transportSource) {
+    audioTransportSource = transportSource;
+}
+
+void RealtimeProcessor::clearAudioTransportSource() {
+    audioTransportSource = nullptr;
 }
 
 void RealtimeProcessor::setProcessingChain(std::shared_ptr<AudioProcessingChain> chain) {
@@ -190,8 +232,16 @@ void RealtimeProcessor::audioDeviceIOCallbackWithContext(const float* const* inp
                                                         int numOutputChannels,
                                                         int numSamples,
                                                         const juce::AudioIODeviceCallbackContext& context) {
+    static int callbackCount = 0;
+    if (callbackCount++ % 100 == 0) {  // 更频繁的日志
+        std::cout << "[RealtimeProcessor] Audio callback #" << callbackCount
+                  << ", samples=" << numSamples
+                  << ", in=" << numInputChannels
+                  << ", out=" << numOutputChannels << std::endl;
+    }
+
     auto startTime = juce::Time::getHighResolutionTicks();
-    
+
     try {
         processAudioBlock(inputChannelData, numInputChannels, outputChannelData, numOutputChannels, numSamples);
     } catch (const std::exception& e) {
@@ -214,29 +264,76 @@ void RealtimeProcessor::processAudioBlock(const float* const* inputChannelData,
                                         float* const* outputChannelData,
                                         int numOutputChannels,
                                         int numSamples) {
-    // 确保缓冲区大小正确
-    inputBuffer.setSize(numInputChannels, numSamples, false, false, true);
-    outputBuffer.setSize(numOutputChannels, numSamples, false, false, true);
-    processedBuffer.setSize(numOutputChannels, numSamples, false, false, true);
-    
-    // 复制输入数据
-    for (int ch = 0; ch < numInputChannels; ++ch) {
-        if (inputChannelData[ch]) {
-            inputBuffer.copyFrom(ch, 0, inputChannelData[ch], numSamples);
-        } else {
-            inputBuffer.clear(ch, 0, numSamples);
-        }
+    // 确保缓冲区大小正确并清零
+    inputBuffer.setSize(numInputChannels, numSamples, false, true, true);  // 清零缓冲区
+    outputBuffer.setSize(numOutputChannels, numSamples, false, true, true); // 清零缓冲区
+    processedBuffer.setSize(numOutputChannels, numSamples, false, true, true); // 清零缓冲区
+
+    // 如果有音频传输源，从它获取音频数据
+    static int debugCount = 0;
+    if (debugCount++ % 200 == 0) {
+        std::cout << "[RealtimeProcessor] Transport status: source=" << (audioTransportSource ? "exists" : "null")
+                  << ", playing=" << (audioTransportSource ? (audioTransportSource->isPlaying() ? "true" : "false") : "N/A") << std::endl;
     }
-    
-    // 复制到处理缓冲区
-    for (int ch = 0; ch < std::min(numInputChannels, numOutputChannels); ++ch) {
-        processedBuffer.copyFrom(ch, 0, inputBuffer, ch, 0, numSamples);
+
+    if (audioTransportSource && audioTransportSource->isPlaying()) {
+        // 创建音频源信息
+        juce::AudioSourceChannelInfo channelInfo;
+        channelInfo.buffer = &processedBuffer;
+        channelInfo.startSample = 0;
+        channelInfo.numSamples = numSamples;
+
+        // 从传输源获取音频数据
+        audioTransportSource->getNextAudioBlock(channelInfo);
+
+        // 如果音频传输源是单声道，但处理缓冲区是立体声，复制到右声道
+        if (processedBuffer.getNumChannels() == 2 && channelInfo.buffer->getNumChannels() == 1) {
+            processedBuffer.copyFrom(1, 0, processedBuffer, 0, 0, numSamples);
+        }
+
+        // 调试：检查音频数据
+        float magnitude = processedBuffer.getMagnitude(0, 0, numSamples);
+        if (magnitude > 0.001f) {
+            static int logCount = 0;
+            if (logCount++ % 100 == 0) { // 每100次回调打印一次
+                std::cout << "[RealtimeProcessor] Audio from transport: magnitude=" << magnitude
+                          << ", channels=" << processedBuffer.getNumChannels() << std::endl;
+            }
+        }
+    } else {
+        // 没有音频传输源时，清零处理缓冲区
+        processedBuffer.clear();
+
+        // 如果有输入数据，复制到处理缓冲区
+        for (int ch = 0; ch < numInputChannels && ch < processedBuffer.getNumChannels(); ++ch) {
+            if (inputChannelData[ch]) {
+                processedBuffer.copyFrom(ch, 0, inputChannelData[ch], numSamples);
+            }
+        }
     }
     
     // 应用VST插件链处理
     if (processingChain && processingChain->isEnabled()) {
         midiBuffer.clear();
+
+        // 调试：处理前的音频电平
+        float preLevel = processedBuffer.getMagnitude(0, 0, numSamples);
+
         processingChain->processBlock(processedBuffer, midiBuffer);
+
+        // 调试：处理后的音频电平
+        float postLevel = processedBuffer.getMagnitude(0, 0, numSamples);
+
+        static int logCount = 0;
+        if (logCount++ % 100 == 0 && (preLevel > 0.001f || postLevel > 0.001f)) {
+            std::cout << "[RealtimeProcessor] VST processing: pre=" << preLevel << ", post=" << postLevel << std::endl;
+        }
+    } else {
+        static int logCount = 0;
+        if (logCount++ % 200 == 0) {
+            std::cout << "[RealtimeProcessor] VST chain disabled or null: chain=" << (processingChain ? "exists" : "null")
+                      << ", enabled=" << (processingChain ? (processingChain->isEnabled() ? "true" : "false") : "N/A") << std::endl;
+        }
     }
     
     // 应用延迟补偿
@@ -260,9 +357,45 @@ void RealtimeProcessor::processAudioBlock(const float* const* inputChannelData,
             // 监听处理后的音频
             if (monitoringEnabled) {
                 for (int ch = 0; ch < numOutputChannels; ++ch) {
-                    if (outputChannelData[ch] && ch < processedBuffer.getNumChannels()) {
-                        juce::FloatVectorOperations::copy(outputChannelData[ch], processedBuffer.getReadPointer(ch), numSamples);
-                        juce::FloatVectorOperations::multiply(outputChannelData[ch], static_cast<float>(monitoringGain.load()), numSamples);
+                    if (outputChannelData[ch]) {
+                        if (ch < processedBuffer.getNumChannels()) {
+                            // 检查音频数据是否有效
+                            const float* sourceData = processedBuffer.getReadPointer(ch);
+                            bool hasValidData = true;
+                            for (int i = 0; i < numSamples; ++i) {
+                                if (!std::isfinite(sourceData[i]) || std::abs(sourceData[i]) > 10.0f) {
+                                    hasValidData = false;
+                                    break;
+                                }
+                            }
+
+                            if (hasValidData) {
+                                juce::FloatVectorOperations::copy(outputChannelData[ch], sourceData, numSamples);
+                                juce::FloatVectorOperations::multiply(outputChannelData[ch], static_cast<float>(monitoringGain.load()), numSamples);
+                            } else {
+                                // 数据无效，输出静音
+                                juce::FloatVectorOperations::clear(outputChannelData[ch], numSamples);
+                            }
+                        } else {
+                            // 没有对应通道，输出静音
+                            juce::FloatVectorOperations::clear(outputChannelData[ch], numSamples);
+                        }
+                    }
+                }
+
+                // 调试：输出音频电平
+                static int logCount = 0;
+                if (logCount++ % 100 == 0) {
+                    float outputLevel = 0.0f;
+                    for (int ch = 0; ch < numOutputChannels; ++ch) {
+                        if (outputChannelData[ch]) {
+                            for (int i = 0; i < numSamples; ++i) {
+                                outputLevel = std::max(outputLevel, std::abs(outputChannelData[ch][i]));
+                            }
+                        }
+                    }
+                    if (outputLevel > 0.001f) {
+                        std::cout << "[RealtimeProcessor] Output level: " << outputLevel << ", gain: " << monitoringGain.load() << std::endl;
                     }
                 }
             } else {
@@ -271,6 +404,11 @@ void RealtimeProcessor::processAudioBlock(const float* const* inputChannelData,
                     if (outputChannelData[ch]) {
                         juce::FloatVectorOperations::clear(outputChannelData[ch], numSamples);
                     }
+                }
+
+                static int logCount = 0;
+                if (logCount++ % 200 == 0) {
+                    std::cout << "[RealtimeProcessor] Monitoring disabled - output muted" << std::endl;
                 }
             }
             break;

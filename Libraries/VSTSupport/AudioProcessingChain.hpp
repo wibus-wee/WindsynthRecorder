@@ -134,7 +134,13 @@ public:
     
     using ErrorCallback = std::function<void(const std::string& error)>;
     void setErrorCallback(ErrorCallback callback) { errorCallback = callback; }
-    
+
+    // 插件编辑器管理
+    bool showPluginEditor(int index);
+    void hidePluginEditor(int index);
+    bool hasPluginEditor(int index) const;
+    void hideAllEditors();
+
     // 延迟补偿
     int getTotalLatency() const;
     void setLatencyCompensation(bool enable) { latencyCompensationEnabled = enable; }
@@ -167,7 +173,11 @@ private:
     void updatePerformanceStats(double processingTime);
     void onError(const std::string& error);
     bool validateIndex(int index) const;
-    
+
+    // 插件编辑器窗口管理
+    std::map<int, std::unique_ptr<juce::DocumentWindow>> editorWindows;
+    void cleanupEditorWindow(int index);
+
     // 线程安全
     juce::CriticalSection lock;
     

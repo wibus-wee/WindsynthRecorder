@@ -64,6 +64,7 @@ AudioProcessingChainHandle audioProcessingChain_create(void);
 void audioProcessingChain_destroy(AudioProcessingChainHandle handle);
 void audioProcessingChain_configure(AudioProcessingChainHandle handle, const ProcessingChainConfig_C* config);
 void audioProcessingChain_prepareToPlay(AudioProcessingChainHandle handle, double sampleRate, int samplesPerBlock);
+void audioProcessingChain_processBlock(AudioProcessingChainHandle handle, float** audioBuffer, int numChannels, int numSamples, void* midiData, int midiDataSize);
 bool audioProcessingChain_addPlugin(AudioProcessingChainHandle handle, VSTPluginInstanceHandle plugin);
 bool audioProcessingChain_removePlugin(AudioProcessingChainHandle handle, int index);
 void audioProcessingChain_clearPlugins(AudioProcessingChainHandle handle);
@@ -75,6 +76,21 @@ bool audioProcessingChain_hasPluginEditor(AudioProcessingChainHandle handle, int
 
 // 插件实例
 void vstPluginInstance_destroy(VSTPluginInstanceHandle handle);
+
+// ============================================================================
+// RealtimeProcessor 简化接口
+// ============================================================================
+
+// 实时处理器句柄
+typedef void* RealtimeProcessorHandle;
+
+// 简化的实时处理器管理
+RealtimeProcessorHandle realtimeProcessor_create(void);
+void realtimeProcessor_destroy(RealtimeProcessorHandle handle);
+bool realtimeProcessor_start(RealtimeProcessorHandle handle);
+void realtimeProcessor_stop(RealtimeProcessorHandle handle);
+bool realtimeProcessor_isRunning(RealtimeProcessorHandle handle);
+void realtimeProcessor_setProcessingChain(RealtimeProcessorHandle handle, AudioProcessingChainHandle* chainHandle);
 
 #ifdef __cplusplus
 }

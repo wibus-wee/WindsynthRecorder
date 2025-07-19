@@ -9,6 +9,14 @@ import SwiftUI
 
 @main
 struct WindsynthRecorderApp: App {
+
+    init() {
+        // 启动实时音频处理
+        Task { @MainActor in
+            RealtimeAudioManager.shared.start()
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

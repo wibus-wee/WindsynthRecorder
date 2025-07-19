@@ -52,36 +52,31 @@ class AudioChainManager: ObservableObject {
     }
     
     deinit {
-        if let chain = processingChain {
-            audioProcessingChain_destroy(chain)
-            processingChain = nil
-        }
+        // 不要销毁处理链，因为它属于 VSTManagerExample
+        processingChain = nil
     }
     
     // MARK: - Setup and Cleanup
     
     private func setupAudioChain() {
-        // 创建音频处理链
-        processingChain = audioProcessingChain_create()
+        // 使用 VSTManagerExample 的处理链，避免重复创建
+        vstManager = VSTManagerExample.shared
+        processingChain = vstManager?.getProcessingChain()
+
         guard processingChain != nil else {
-            errorMessage = "Failed to create audio processing chain"
+            errorMessage = "Failed to get audio processing chain from VST manager"
             return
         }
-        
-        // 创建 VST 管理器
-        vstManager = VSTManagerExample.shared
-        
+
         // 配置默认设置
         configureChain(with: chainConfig)
-        
-        print("Audio chain manager initialized successfully")
+
+        print("Audio chain manager initialized successfully (using shared chain)")
     }
     
     private func cleanup() {
-        if let chain = processingChain {
-            audioProcessingChain_destroy(chain)
-            processingChain = nil
-        }
+        // 不要销毁处理链，因为它属于 VSTManagerExample
+        processingChain = nil
     }
     
     // MARK: - Configuration

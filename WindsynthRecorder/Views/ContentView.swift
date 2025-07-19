@@ -44,7 +44,7 @@ struct ContentView: View {
     }
     @State private var showingAudioProcessor = false
     @State private var showingVSTProcessor = false
-    @State private var showingAudioMixer = false
+    @State private var showingAudioMixer = true
     @State private var showingFFmpegSettings = false
     @State private var showingDeviceList = false
     @State private var showingLogs = false

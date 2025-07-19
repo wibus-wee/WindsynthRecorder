@@ -235,6 +235,8 @@ class VSTManagerExample: ObservableObject {
         if success {
             loadedPlugins.append(identifier)
             print("Successfully loaded plugin with identifier: \(identifier)")
+            print("🔍 loadedPlugins count after append: \(loadedPlugins.count)")
+            print("🔍 loadedPlugins array: \(loadedPlugins)")
         } else {
             errorMessage = "Failed to add plugin to processing chain: \(identifier)"
             vstPluginInstance_destroy(instance)
@@ -325,13 +327,48 @@ class VSTManagerExample: ObservableObject {
 
     // MARK: - 音频处理
 
+    /// 处理单指针音频缓冲区（已废弃，保留兼容性）
     func processAudioBuffer(_ buffer: UnsafeMutablePointer<Float>, numSamples: Int, numChannels: Int) -> Bool {
         guard let chain = processingChain else {
             return false
         }
 
-//        return audioProcessingChain_processAudio(chain, buffer, Int32(numSamples), Int32(numChannels))
-        return false
+        // 将单指针转换为多指针格式
+        var channelPointers = [UnsafeMutablePointer<Float>?](repeating: nil, count: numChannels)
+
+        if numChannels == 1 {
+            // 单声道直接使用
+            channelPointers[0] = buffer
+        } else {
+            // 多声道需要分离（假设是交错格式）
+            // 这里简化处理，实际应该根据具体格式处理
+            channelPointers[0] = buffer
+        }
+
+        return channelPointers.withUnsafeMutableBufferPointer { bufferPointer in
+            audioProcessingChain_processBlock(chain, bufferPointer.baseAddress, Int32(numChannels), Int32(numSamples), nil, Int32(0))
+            return true
+        }
+    }
+
+    /// 处理多通道音频缓冲区（正确的接口）
+    func processAudioBuffer(_ channelData: UnsafeMutablePointer<UnsafeMutablePointer<Float>>, numSamples: Int, numChannels: Int) -> Bool {
+        guard let chain = processingChain else {
+            return false
+        }
+
+        // 验证输入参数
+        guard numChannels > 0 && numSamples > 0 else {
+            print("⚠️ Invalid parameters: numChannels=\(numChannels), numSamples=\(numSamples)")
+            return false
+        }
+
+        // 使用 withMemoryRebound 进行类型转换
+        let result = channelData.withMemoryRebound(to: UnsafeMutablePointer<Float>?.self, capacity: numChannels) { reboundPointer in
+            audioProcessingChain_processBlock(chain, reboundPointer, Int32(numChannels), Int32(numSamples), nil, Int32(0))
+        }
+
+        return true
     }
 
     /// 检查是否有已加载的插件可以进行实时处理
@@ -346,6 +383,11 @@ class VSTManagerExample: ObservableObject {
         } else {
             return "已加载 \(loadedPlugins.count) 个插件"
         }
+    }
+
+    /// 获取处理链句柄（用于实时音频处理）
+    func getProcessingChain() -> AudioProcessingChainHandle? {
+        return processingChain
     }
 
     // MARK: - 实用方法

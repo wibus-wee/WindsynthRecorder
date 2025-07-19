@@ -11,14 +11,21 @@ enum RecordingState {
 
 class AudioRecorder: NSObject, ObservableObject {
     static let shared = AudioRecorder()
-    
+
     @Published var recordingState: RecordingState = .idle
     @Published var currentTime: TimeInterval = 0
-    
+    @Published var vstProcessingEnabled: Bool = false
+    @Published var vstProcessingActive: Bool = false
+
     private var audioEngine: AVAudioEngine?
     private var audioFile: AVAudioFile?
     private var timer: Timer?
     var temporaryAudioURL: URL?
+
+    // VST 处理相关
+    private var vstManager: VSTManagerExample?
+    private var audioBuffer: UnsafeMutablePointer<Float>?
+    private var bufferSize: Int = 0
     
     private override init() {
         super.init()

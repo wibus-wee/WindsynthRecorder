@@ -4,6 +4,7 @@ struct ContentView: View {
     @StateObject private var audioDeviceManager = AudioDeviceManager.shared
     @StateObject private var audioRecorder = AudioRecorder.shared
     @StateObject private var notificationManager = NotificationManager.shared
+    @ObservedObject private var vstManager = VSTManagerExample.shared
     @State private var showingSaveDialog = false
     @State private var fileName = ""
     @State private var maximizeLoudness = true
@@ -42,6 +43,8 @@ struct ContentView: View {
         }
     }
     @State private var showingAudioProcessor = false
+    @State private var showingVSTProcessor = false
+    @State private var showingAudioMixer = true
     @State private var showingFFmpegSettings = false
     @State private var showingDeviceList = false
     @State private var showingLogs = false
@@ -152,6 +155,12 @@ struct ContentView: View {
         .sheet(isPresented: $showingLogs) {
             AudioProcessingLogView(isPresented: $showingLogs)
         }
+        .sheet(isPresented: $showingVSTProcessor) {
+            VSTProcessorView()
+        }
+        .sheet(isPresented: $showingAudioMixer) {
+            AudioMixerView()
+        }
         .sheet(isPresented: $showingAudioProcessor) {
             AudioProcessorView(isPresented: $showingAudioProcessor)
         }
@@ -191,6 +200,48 @@ struct ContentView: View {
                         .buttonStyle(.plain)
                         .help(ffmpegManager.isFFmpegAvailable ? "FFmpeg 可用 - 点击查看设置" : "FFmpeg 不可用 - 点击配置")
                     }
+
+                    // VST 处理器按钮
+                    Button(action: {
+                        showingVSTProcessor = true
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: vstManager.hasLoadedPlugins ? "music.note.list" : "music.note.list")
+                                .font(.system(size: 12, weight: .medium))
+                            Text("VST 插件")
+                                .font(.system(size: 11, weight: .medium))
+
+                            if vstManager.hasLoadedPlugins {
+                                Text("(\(vstManager.loadedPlugins.count))")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(.green)
+                            }
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(vstManager.hasLoadedPlugins ? Color.green.opacity(0.1) : Color.blue.opacity(0.1), in: RoundedRectangle(cornerRadius: 4))
+                        .foregroundStyle(vstManager.hasLoadedPlugins ? .green : .blue)
+                    }
+                    .buttonStyle(.plain)
+                    .help(vstManager.hasLoadedPlugins ? "VST 插件处理器 - \(vstManager.processingChainStatus)" : "VST 插件处理器")
+
+                    // 音频混音台按钮
+                    Button(action: {
+                        showingAudioMixer = true
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "slider.horizontal.3")
+                                .font(.system(size: 12, weight: .medium))
+                            Text("混音台")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 4))
+                        .foregroundStyle(.orange)
+                    }
+                    .buttonStyle(.plain)
+                    .help("音频混音台 - 实时播放和VST处理")
 
                     // 音频后处理按钮
                     Button(action: {

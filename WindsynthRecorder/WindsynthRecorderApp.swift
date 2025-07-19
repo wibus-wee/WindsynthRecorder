@@ -37,7 +37,6 @@ struct WindsynthRecorderApp: App {
                         startupWindow.standardWindowButton(.closeButton)?.isHidden = true
                         startupWindow.standardWindowButton(.miniaturizeButton)?.isHidden = true
                         startupWindow.standardWindowButton(.zoomButton)?.isHidden = true
-                        startupWindow.titlebarAppearsTransparent = true
                         startupWindow.titleVisibility = .hidden
                         startupWindow.center()
                         startupWindow.makeKeyAndOrderFront(nil)
@@ -58,8 +57,7 @@ struct WindsynthRecorderApp: App {
                     // 确保主窗口正确设置
                     DispatchQueue.main.async {
                         if let mainWindow = NSApplication.shared.windows.first(where: { $0.identifier?.rawValue == "main" }) {
-                            mainWindow.titlebarAppearsTransparent = false
-                            mainWindow.titleVisibility = .visible
+                            mainWindow.titleVisibility = .hidden
                             mainWindow.standardWindowButton(.closeButton)?.isHidden = false
                             mainWindow.standardWindowButton(.miniaturizeButton)?.isHidden = false
                             mainWindow.standardWindowButton(.zoomButton)?.isHidden = false

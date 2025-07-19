@@ -421,7 +421,7 @@ class VSTManagerExample: ObservableObject {
         }
 
         // 使用 withMemoryRebound 进行类型转换
-        let result = channelData.withMemoryRebound(to: UnsafeMutablePointer<Float>?.self, capacity: numChannels) { reboundPointer in
+        channelData.withMemoryRebound(to: UnsafeMutablePointer<Float>?.self, capacity: numChannels) { reboundPointer in
             audioProcessingChain_processBlock(chain, reboundPointer, Int32(numChannels), Int32(numSamples), nil, Int32(0))
         }
 

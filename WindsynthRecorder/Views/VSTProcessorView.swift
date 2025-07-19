@@ -49,9 +49,16 @@ struct VSTProcessorView: View {
         }
         .navigationTitle("插件管理器")
         .onAppear {
-            // 确保UI在视图出现时刷新
+            // 视图出现时自动获取插件列表
             DispatchQueue.main.async {
-                vstManager.objectWillChange.send()
+                // 如果还没有扫描过插件，自动开始扫描
+                if vstManager.availablePlugins.isEmpty && !vstManager.isScanning {
+                    print("🔍 自动扫描 VST 插件...")
+                    vstManager.scanForPlugins()
+                } else {
+                    // 如果已有插件列表，只刷新UI
+                    vstManager.objectWillChange.send()
+                }
             }
         }
     }

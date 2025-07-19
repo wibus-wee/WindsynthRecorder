@@ -22,15 +22,6 @@ struct VSTManagerWindowView: View {
                     }
                     .keyboardShortcut("w", modifiers: .command)
                 }
-                
-                ToolbarItem(placement: .navigation) {
-                    Button(action: {
-                        // 可以添加VST管理器特定的操作
-                    }) {
-                        Image(systemName: "music.note.list")
-                    }
-                    .help("VST 插件管理")
-                }
             }
             .navigationTitle("VST 插件管理器")
             .frame(

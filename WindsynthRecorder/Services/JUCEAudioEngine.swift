@@ -400,9 +400,9 @@ class JUCEAudioEngine: NSObject, ObservableObject {
             realtimeProcessor_destroy(processor)
         }
 
-        if let chain = audioProcessingChain {
-            audioProcessingChain_destroy(chain)
-        }
+        // 不要销毁处理链，因为它属于 VSTManagerExample 单例
+        // 只需要清除引用即可
+        audioProcessingChain = nil
 
         cancellables.removeAll()
 

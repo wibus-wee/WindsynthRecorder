@@ -72,20 +72,6 @@ class RealtimeAudioManager: ObservableObject {
         // 启动实时处理器（添加错误处理）
         print("🚀 Attempting to start RealtimeProcessor...")
 
-        // 暂时跳过启动，只连接处理链
-        // TODO: 修复 RealtimeProcessor 启动问题
-        /*
-        let success = realtimeProcessor_start(processor)
-        if success {
-            isRunning = true
-            errorMessage = nil
-            print("✅ RealtimeProcessor started successfully")
-        } else {
-            errorMessage = "Failed to start realtime processor"
-            print("❌ Failed to start RealtimeProcessor")
-        }
-        */
-
         // 启动 AudioMixerService 的实时处理
         audioMixerService?.startRealtimeProcessing()
 

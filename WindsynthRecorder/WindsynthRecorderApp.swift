@@ -10,19 +10,67 @@ import SwiftUI
 @main
 struct WindsynthRecorderApp: App {
     @StateObject private var windowManager = WindowManager.shared
+    @State private var showStartupWindow = true
 
     init() {
         // VST 音频处理会在需要时自动启动
     }
 
     var body: some Scene {
-        // 主窗口 - 录音控制界面
-        WindowGroup {
-            ContentView()
-                .environmentObject(windowManager)
+        // 启动窗口 - 独立窗口
+        Window("WindsynthRecorder Startup", id: "startup") {
+            StartupInitializationViewWrapper(onComplete: {
+                // 启动完成回调
+                DispatchQueue.main.async {
+                    showStartupWindow = false
+                    // 关闭启动窗口
+                    if let startupWindow = NSApplication.shared.windows.first(where: { $0.identifier?.rawValue == "startup" }) {
+                        startupWindow.close()
+                    }
+                }
+            })
+            .environmentObject(windowManager)
+            .onAppear {
+                // 隐藏启动窗口的标题栏按钮
+                DispatchQueue.main.async {
+                    if let startupWindow = NSApplication.shared.windows.first(where: { $0.identifier?.rawValue == "startup" }) {
+                        startupWindow.standardWindowButton(.closeButton)?.isHidden = true
+                        startupWindow.standardWindowButton(.miniaturizeButton)?.isHidden = true
+                        startupWindow.standardWindowButton(.zoomButton)?.isHidden = true
+                        startupWindow.titlebarAppearsTransparent = true
+                        startupWindow.titleVisibility = .hidden
+                        startupWindow.center()
+                        startupWindow.makeKeyAndOrderFront(nil)
+                    }
+                }
+            }
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
+        .defaultSize(width: 520, height: 300)
+        .defaultPosition(.center)
+
+        // 主窗口 - 独立窗口
+        Window("WindsynthRecorder", id: "main") {
+            ContentView()
+                .environmentObject(windowManager)
+                .onAppear {
+                    // 确保主窗口正确设置
+                    DispatchQueue.main.async {
+                        if let mainWindow = NSApplication.shared.windows.first(where: { $0.identifier?.rawValue == "main" }) {
+                            mainWindow.titlebarAppearsTransparent = false
+                            mainWindow.titleVisibility = .visible
+                            mainWindow.standardWindowButton(.closeButton)?.isHidden = false
+                            mainWindow.standardWindowButton(.miniaturizeButton)?.isHidden = false
+                            mainWindow.standardWindowButton(.zoomButton)?.isHidden = false
+                        }
+                    }
+                }
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
+        .defaultSize(width: 800, height: 600)
+        .defaultPosition(.center)
         .commands {
             CommandGroup(replacing: .appInfo) {
                 Button("关于 WindsynthRecorder") {
@@ -141,5 +189,20 @@ struct WindsynthRecorderApp: App {
         aboutWindow.level = .floating
         aboutWindow.isReleasedWhenClosed = false
         aboutWindow.hasShadow = true
+    }
+}
+
+// MARK: - 启动窗口包装器
+struct StartupInitializationViewWrapper: View {
+    let onComplete: () -> Void
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        StartupInitializationView {
+            // 启动完成后打开主窗口
+            openWindow(id: "main")
+            // 然后执行完成回调
+            onComplete()
+        }
     }
 }

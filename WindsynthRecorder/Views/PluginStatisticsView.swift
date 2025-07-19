@@ -20,7 +20,7 @@ struct PluginStatistics {
 
 /// 插件统计信息视图
 struct PluginStatisticsView: View {
-    @ObservedObject private var vstManager = VSTManagerExample.shared
+    @StateObject private var vstManager = VSTManagerExample.shared
     @Environment(\.dismiss) private var dismiss
     
     private var statistics: PluginStatistics {

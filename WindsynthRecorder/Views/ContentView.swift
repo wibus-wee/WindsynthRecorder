@@ -4,7 +4,7 @@ struct ContentView: View {
     @StateObject private var audioDeviceManager = AudioDeviceManager.shared
     @StateObject private var audioRecorder = AudioRecorder.shared
     @StateObject private var notificationManager = NotificationManager.shared
-    @ObservedObject private var vstManager = VSTManagerExample.shared
+    @StateObject private var vstManager = VSTManagerExample.shared
 
     // MARK: - Window Management
     @EnvironmentObject private var windowManager: WindowManager
@@ -118,7 +118,7 @@ struct ContentView: View {
                 .padding(20)
             }
         }
-        .frame(minWidth: 600, minHeight: 500)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.windowBackgroundColor))
         .overlay(notificationOverlay)
         .onAppear {
@@ -201,19 +201,24 @@ struct ContentView: View {
                             Text("VST 插件")
                                 .font(.system(size: 11, weight: .medium))
 
+                            // 显示已加载插件数量（绿色）或可用插件数量（蓝色）
                             if vstManager.hasLoadedPlugins {
                                 Text("(\(vstManager.loadedPlugins.count))")
                                     .font(.system(size: 10, weight: .bold))
                                     .foregroundStyle(.green)
+                            } else if !vstManager.availablePlugins.isEmpty {
+                                Text("(\(vstManager.availablePlugins.count))")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(.blue)
                             }
                         }
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(vstManager.hasLoadedPlugins ? Color.green.opacity(0.1) : Color.blue.opacity(0.1), in: RoundedRectangle(cornerRadius: 4))
-                        .foregroundStyle(vstManager.hasLoadedPlugins ? .green : .blue)
+                        .background(vstManager.hasLoadedPlugins ? Color.green.opacity(0.1) : (!vstManager.availablePlugins.isEmpty ? Color.blue.opacity(0.1) : Color.gray.opacity(0.1)), in: RoundedRectangle(cornerRadius: 4))
+                        .foregroundStyle(vstManager.hasLoadedPlugins ? .green : (!vstManager.availablePlugins.isEmpty ? .blue : .gray))
                     }
                     .buttonStyle(.plain)
-                    .help(vstManager.hasLoadedPlugins ? "VST 插件处理器 - \(vstManager.processingChainStatus)" : "VST 插件处理器")
+                    .help(vstManager.hasLoadedPlugins ? "VST 插件处理器 - \(vstManager.processingChainStatus)" : (!vstManager.availablePlugins.isEmpty ? "VST 插件处理器 - 发现 \(vstManager.availablePlugins.count) 个可用插件" : "VST 插件处理器"))
 
                     // 音频混音台按钮
                     Button(action: {

@@ -78,7 +78,23 @@ class WindowManager: ObservableObject {
     private init() {}
     
     // MARK: - 窗口控制方法
-    
+
+    /// 打开主窗口
+    func openMainWindow() {
+        // 通过 NSApplication 查找并激活主窗口
+        DispatchQueue.main.async {
+            // 查找主窗口
+            if let mainWindow = NSApplication.shared.windows.first(where: { $0.identifier?.rawValue == "main" }) {
+                mainWindow.makeKeyAndOrderFront(nil)
+                NSApplication.shared.activate(ignoringOtherApps: true)
+            } else {
+                // 如果主窗口不存在，创建一个新的
+                // 这通常不应该发生，因为主窗口应该在应用启动时就存在
+                print("Warning: Main window not found")
+            }
+        }
+    }
+
     /// 打开音频混音台窗口
     func openAudioMixer() {
         isAudioMixerOpen = true

@@ -118,6 +118,10 @@ class VSTManagerExample: ObservableObject {
                 manager.scanProgress = progress
                 if let nameStr = pluginNameString {
                     print("Scanning: \(nameStr) - \(Int(progress * 100))%")
+                    // 调用外部回调
+                    manager.scanProgressCallback?(nameStr, progress)
+                } else {
+                    manager.scanProgressCallback?("正在扫描插件...", progress)
                 }
             }
         }
@@ -155,7 +159,14 @@ class VSTManagerExample: ObservableObject {
     }
     
     // MARK: - 插件扫描
-    
+
+    // 扫描进度回调
+    private var scanProgressCallback: ((String, Float) -> Void)?
+
+    func setScanProgressCallback(_ callback: @escaping (String, Float) -> Void) {
+        scanProgressCallback = callback
+    }
+
     func scanForPlugins() {
         guard let manager = pluginManager else {
             errorMessage = "Plugin manager not initialized"
@@ -176,6 +187,7 @@ class VSTManagerExample: ObservableObject {
             DispatchQueue.main.async {
                 self?.isScanning = false
                 self?.loadAvailablePlugins()
+                self?.scanProgressCallback?("扫描完成", 1.0)
                 print("✅ VST 插件扫描完成")
             }
         }

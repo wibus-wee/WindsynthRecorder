@@ -10,7 +10,7 @@ import SwiftUI
 
 /// VST 插件管理器 - 专业版本
 struct VSTProcessorView: View {
-    @ObservedObject private var vstManager = VSTManagerExample.shared
+    @StateObject private var vstManager = VSTManagerExample.shared
     @State private var selectedCategory: String = "全部"
     @State private var searchText: String = ""
     @State private var showingOnlyEnabled: Bool = false

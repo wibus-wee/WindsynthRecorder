@@ -159,6 +159,9 @@ class StartupInitializationManager: ObservableObject {
     @Published var detailText = ""
 
     private let vstManager = VSTManagerExample.shared
+    private let audioDeviceManager = AudioDeviceManager.shared
+    private let ffmpegManager = FFmpegManager.shared
+    private let notificationManager = NotificationManager.shared
 
     func startInitialization(completion: @escaping (Bool) -> Void) {
         Task {
@@ -168,31 +171,40 @@ class StartupInitializationManager: ObservableObject {
     }
 
     private func performInitializationSteps() async {
-        // 步骤 1: 初始化音频系统
-        await updateProgress(task: "正在初始化音频系统...", progress: 0.1)
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5秒
+        // 步骤 1: 记录应用启动信息
+        await updateProgress(task: "正在启动应用...", progress: 0.05)
+        AudioProcessingLogger.shared.info("应用启动", details: "WindsynthRecorder 已启动\n系统: \(ProcessInfo.processInfo.operatingSystemVersionString)\n设备: \(ProcessInfo.processInfo.hostName)")
+        try? await Task.sleep(nanoseconds: 200_000_000) // 0.2秒
 
-        // 步骤 2: 加载音频设备配置
-        await updateProgress(task: "正在加载音频设备配置...", progress: 0.2)
+        // 步骤 2: 初始化音频系统
+        await updateProgress(task: "正在初始化音频系统...", progress: 0.1)
         try? await Task.sleep(nanoseconds: 300_000_000) // 0.3秒
 
-        // 步骤 3: 扫描 VST 插件
-        await updateProgress(task: "正在扫描 VST 插件...", progress: 0.3, detail: "搜索系统插件目录")
-        // 20s
-        // try? await Task.sleep(nanoseconds: 20_000_000_000)
+        // 步骤 3: 检查音频设备
+        await updateProgress(task: "正在检查音频设备...", progress: 0.15, detail: "刷新设备列表并检查 SR 设备状态")
+        await checkDevices()
+        try? await Task.sleep(nanoseconds: 300_000_000) // 0.3秒
+
+        // 步骤 4: 检查和配置 FFmpeg
+        await updateProgress(task: "正在检查 FFmpeg...", progress: 0.2, detail: "验证音频处理工具")
+        await checkAndSetupFFmpeg()
+        try? await Task.sleep(nanoseconds: 300_000_000) // 0.3秒
+
+        // 步骤 5: 扫描 VST 插件
+        await updateProgress(task: "正在扫描 VST 插件...", progress: 0.35, detail: "搜索系统插件目录")
         await scanVSTPlugins()
 
-        // 步骤 4: 加载插件缓存
-        await updateProgress(task: "正在加载插件缓存...", progress: 0.8)
+        // 步骤 6: 加载插件缓存
+        await updateProgress(task: "正在加载插件缓存...", progress: 0.85)
         try? await Task.sleep(nanoseconds: 300_000_000)
 
-        // 步骤 5: 完成初始化
-        await updateProgress(task: "正在完成初始化...", progress: 0.9)
+        // 步骤 7: 完成初始化
+        await updateProgress(task: "正在完成初始化...", progress: 0.95)
         try? await Task.sleep(nanoseconds: 200_000_000)
 
-        // 步骤 6: 准备就绪
+        // 步骤 8: 准备就绪
         await updateProgress(task: "初始化完成", progress: 1.0, detail: "WindsynthRecorder 已准备就绪")
-        try? await Task.sleep(nanoseconds: 500_000_000)
+        try? await Task.sleep(nanoseconds: 10_00_000_000) // sleep for 2 seconds
     }
 
     private func scanVSTPlugins() async {
@@ -200,7 +212,7 @@ class StartupInitializationManager: ObservableObject {
         vstManager.setScanProgressCallback { [weak self] pluginName, progress in
             DispatchQueue.main.async {
                 self?.currentTask = "正在扫描 VST 插件..."
-                self?.progress = 0.3 + (Double(progress) * 0.5) // 从30%到80%
+                self?.progress = 0.35 + (Double(progress) * 0.5) // 从35%到85%
                 self?.detailText = "\(pluginName)"
             }
         }
@@ -228,6 +240,41 @@ class StartupInitializationManager: ObservableObject {
             self?.currentTask = task
             self?.progress = progress
             self?.detailText = detail
+        }
+    }
+
+    // MARK: - Device and System Checks
+
+    private func checkDevices() async {
+        AudioProcessingLogger.shared.info("开始设备检查", details: "刷新设备列表并检查 SR 设备状态")
+
+        audioDeviceManager.refreshDeviceList()
+        let (success, message) = audioDeviceManager.checkAndSetupSRBlueDevice()
+        if !success {
+            AudioProcessingLogger.shared.warning("SR Blue 设备检查", details: message)
+        }
+
+        let (available, recMessage) = audioDeviceManager.checkSRRecDevice()
+        if !available {
+            AudioProcessingLogger.shared.warning("SR-REC 设备检查", details: recMessage)
+        }
+
+        AudioProcessingLogger.shared.info("设备检查完成", details: "SR Blue: \(success ? "成功" : "失败"), SR-REC: \(available ? "可用" : "不可用")")
+    }
+
+    private func checkAndSetupFFmpeg() async {
+        await updateProgress(task: "正在检查 FFmpeg...", progress: 0.21, detail: "验证音频处理工具配置")
+
+        // 触发 FFmpeg 初始化检查（如果需要的话会自动发现）
+        ffmpegManager.initializeIfNeeded()
+
+        // 更新进度和日志
+        if ffmpegManager.isFFmpegAvailable {
+            await updateProgress(task: "FFmpeg 配置完成", progress: 0.25, detail: "已找到并配置 FFmpeg")
+            AudioProcessingLogger.shared.success("FFmpeg 配置成功", details: "路径: \(ffmpegManager.ffmpegPath)\n版本: \(ffmpegManager.ffmpegVersion)")
+        } else {
+            await updateProgress(task: "FFmpeg 未找到", progress: 0.25, detail: "某些功能可能不可用")
+            AudioProcessingLogger.shared.warning("FFmpeg 未找到", details: "某些功能可能不可用，请在设置中手动配置 FFmpeg 路径")
         }
     }
 }

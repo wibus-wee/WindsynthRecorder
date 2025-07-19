@@ -24,13 +24,23 @@ class FFmpegManager: ObservableObject {
     
     private init() {
         loadSavedPath()
-        if ffmpegPath.isEmpty || !validateFFmpegPath(ffmpegPath) {
-            autoDiscoverFFmpeg()
-        }
+        // 不在初始化时自动发现，改为在 StartupInitializationView 中统一处理
     }
     
     // MARK: - Public Methods
-    
+
+    func initializeIfNeeded() {
+        // 首先验证已保存的路径（如果有的话）
+        if !ffmpegPath.isEmpty && validateFFmpegPath(ffmpegPath) {
+            isFFmpegAvailable = true
+            updateFFmpegVersion()
+            return
+        }
+
+        // 如果没有保存的路径或路径无效，则自动发现
+        autoDiscoverFFmpeg()
+    }
+
     func validateFFmpegPath(_ path: String) -> Bool {
         let expandedPath = NSString(string: path).expandingTildeInPath
         let fileManager = FileManager.default
@@ -107,10 +117,8 @@ class FFmpegManager: ObservableObject {
     private func loadSavedPath() {
         if let savedPath = userDefaults.string(forKey: ffmpegPathKey) {
             ffmpegPath = savedPath
-            isFFmpegAvailable = validateFFmpegPath(savedPath)
-            if isFFmpegAvailable {
-                updateFFmpegVersion()
-            }
+            // 不在加载时验证，延迟到 initializeIfNeeded() 中进行
+            isFFmpegAvailable = false
         }
     }
     

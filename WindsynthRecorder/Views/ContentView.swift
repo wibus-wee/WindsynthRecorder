@@ -122,21 +122,8 @@ struct ContentView: View {
         .background(Color(.windowBackgroundColor))
         .overlay(notificationOverlay)
         .onAppear {
-            // 记录应用启动信息
-            AudioProcessingLogger.shared.info("应用启动", details: "WindsynthRecorder 已启动\n系统: \(ProcessInfo.processInfo.operatingSystemVersionString)\n设备: \(ProcessInfo.processInfo.hostName)")
-
-            checkDevices()
+            // 启动自动刷新（初始化已在 StartupInitializationView 中完成）
             startAutoRefresh()
-
-            // 检查 FFmpeg 可用性
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                if !ffmpegManager.isFFmpegAvailable {
-                    AudioProcessingLogger.shared.warning("FFmpeg 未配置", details: "某些功能可能不可用，请在设置中配置 FFmpeg 路径")
-                    NotificationManager.shared.showError(message: "FFmpeg 未配置，某些功能可能不可用")
-                } else {
-                    AudioProcessingLogger.shared.success("FFmpeg 已配置", details: "路径: \(ffmpegManager.ffmpegPath)\n版本: \(ffmpegManager.ffmpegVersion)")
-                }
-            }
         }
         .onDisappear {
             stopAutoRefresh()

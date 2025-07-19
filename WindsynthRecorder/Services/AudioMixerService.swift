@@ -40,6 +40,13 @@ class AudioMixerService: NSObject, ObservableObject {
     @Published var outputLevel: Float = 0.0
     @Published var currentFileName: String = ""
     @Published var errorMessage: String?
+
+    // VST 插件状态（从 VSTManagerExample 同步）
+    @Published var loadedPlugins: [String] = []
+    @Published var availablePlugins: [VSTPluginInfo] = []
+
+    // 当前音频文件 URL（用于波形数据提取）
+    private(set) var currentAudioURL: URL?
     
     // MARK: - Private Properties
     
@@ -120,6 +127,28 @@ class AudioMixerService: NSObject, ObservableObject {
             .store(in: &cancellables)
 
         print("✅ JUCE Audio Engine synchronized with AudioMixerService")
+
+        // 同步 VST 管理器状态
+        synchronizeWithVSTManager()
+    }
+
+    private func synchronizeWithVSTManager() {
+        // 监听 VST 管理器的插件状态变化
+        vstManager.$loadedPlugins
+            .sink { [weak self] plugins in
+                self?.loadedPlugins = plugins
+                print("🔍 VST loadedPlugins updated: \(plugins)")
+            }
+            .store(in: &cancellables)
+
+        vstManager.$availablePlugins
+            .sink { [weak self] plugins in
+                self?.availablePlugins = plugins
+                print("🔍 VST availablePlugins updated: \(plugins.count) plugins")
+            }
+            .store(in: &cancellables)
+
+        print("✅ VST Manager synchronized with AudioMixerService")
     }
     
     private func setupObservers() {
@@ -131,6 +160,9 @@ class AudioMixerService: NSObject, ObservableObject {
     
     /// 加载音频文件
     func loadAudioFile(url: URL) {
+        // 保存当前音频文件 URL
+        currentAudioURL = url
+
         // 委托给 JUCE 音频引擎
         juceAudioEngine.loadAudioFile(from: url)
 

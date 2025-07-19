@@ -5,6 +5,11 @@ struct ContentView: View {
     @StateObject private var audioRecorder = AudioRecorder.shared
     @StateObject private var notificationManager = NotificationManager.shared
     @ObservedObject private var vstManager = VSTManagerExample.shared
+
+    // MARK: - Window Management
+    @EnvironmentObject private var windowManager: WindowManager
+    @Environment(\.openWindow) private var openWindow
+
     @State private var showingSaveDialog = false
     @State private var fileName = ""
     @State private var maximizeLoudness = true
@@ -42,12 +47,8 @@ struct ContentView: View {
             }
         }
     }
-    @State private var showingAudioProcessor = false
-    @State private var showingVSTProcessor = false
-    @State private var showingAudioMixer = true
     @State private var showingFFmpegSettings = false
     @State private var showingDeviceList = false
-    @State private var showingLogs = false
     @State private var autoRefreshTimer: Timer?
     @ObservedObject private var ffmpegManager = FFmpegManager.shared
 
@@ -152,18 +153,7 @@ struct ContentView: View {
         .sheet(isPresented: $showingLoudnormSettings) {
             LoudnormSettingsView(settings: $loudnormSettings, isPresented: $showingLoudnormSettings)
         }
-        .sheet(isPresented: $showingLogs) {
-            AudioProcessingLogView(isPresented: $showingLogs)
-        }
-        .sheet(isPresented: $showingVSTProcessor) {
-            VSTProcessorView()
-        }
-        .sheet(isPresented: $showingAudioMixer) {
-            AudioMixerView()
-        }
-        .sheet(isPresented: $showingAudioProcessor) {
-            AudioProcessorView(isPresented: $showingAudioProcessor)
-        }
+
         .sheet(isPresented: $showingFFmpegSettings) {
             FFmpegSettingsView(isPresented: $showingFFmpegSettings)
         }
@@ -203,7 +193,7 @@ struct ContentView: View {
 
                     // VST 处理器按钮
                     Button(action: {
-                        showingVSTProcessor = true
+                        openWindow(id: WindowManager.WindowConfig.vstManager.id)
                     }) {
                         HStack(spacing: 4) {
                             Image(systemName: vstManager.hasLoadedPlugins ? "music.note.list" : "music.note.list")
@@ -227,7 +217,7 @@ struct ContentView: View {
 
                     // 音频混音台按钮
                     Button(action: {
-                        showingAudioMixer = true
+                        openWindow(id: WindowManager.WindowConfig.audioMixer.id)
                     }) {
                         HStack(spacing: 4) {
                             Image(systemName: "slider.horizontal.3")
@@ -245,7 +235,7 @@ struct ContentView: View {
 
                     // 音频后处理按钮
                     Button(action: {
-                        showingAudioProcessor = true
+                        openWindow(id: WindowManager.WindowConfig.audioProcessor.id)
                     }) {
                         HStack(spacing: 4) {
                             Image(systemName: "waveform.badge.plus")
@@ -450,7 +440,9 @@ struct ContentView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
 
-                Button(action: { showingLogs = true }) {
+                Button(action: {
+                    openWindow(id: WindowManager.WindowConfig.logs.id)
+                }) {
                     HStack(spacing: 4) {
                         Image(systemName: "doc.text")
                             .font(.system(size: 11, weight: .medium))

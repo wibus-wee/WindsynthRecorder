@@ -12,7 +12,6 @@ import UniformTypeIdentifiers
 /// 音频混音台主界面
 struct AudioMixerView: View {
     @StateObject private var mixerService = AudioMixerService()
-    @Environment(\.dismiss) private var dismiss
     
     // UI状态
     @State private var showingFilePicker = false
@@ -46,13 +45,6 @@ struct AudioMixerView: View {
             bottomPanel
         }
         .navigationTitle("音频混音台")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button("关闭") {
-                    dismiss()
-                }
-            }
-        }
         .fileImporter(
             isPresented: $showingFilePicker,
             allowedContentTypes: [.audio],

@@ -210,9 +210,16 @@ class VSTManagerExample: ObservableObject {
 
         DispatchQueue.main.async { [weak self] in
             self?.availablePlugins = plugins
+            // 强制触发UI更新
+            self?.objectWillChange.send()
             print("✅ 成功加载 \(plugins.count) 个插件到 UI")
             print("📊 当前 availablePlugins.count = \(self?.availablePlugins.count ?? 0)")
             print("📊 availablePlugins.isEmpty = \(self?.availablePlugins.isEmpty ?? true)")
+
+            // 延迟再次触发更新，确保UI刷新
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self?.objectWillChange.send()
+            }
         }
     }
     
@@ -250,13 +257,38 @@ class VSTManagerExample: ObservableObject {
               index >= 0 && index < loadedPlugins.count else {
             return false
         }
-        
+
         let success = audioProcessingChain_removePlugin(chain, Int32(index))
         if success {
             loadedPlugins.remove(at: index)
             print("Removed plugin at index \(index)")
+            // 强制UI更新
+            DispatchQueue.main.async { [weak self] in
+                self?.objectWillChange.send()
+            }
         }
-        
+
+        return success
+    }
+
+    /// 通过插件标识符卸载插件
+    func unloadPlugin(identifier: String) -> Bool {
+        guard let index = loadedPlugins.firstIndex(of: identifier) else {
+            print("⚠️ 插件未加载: \(identifier)")
+            return false
+        }
+
+        // 先隐藏编辑器
+        hidePluginEditor(identifier: identifier)
+
+        // 然后移除插件
+        let success = removePlugin(at: index)
+        if success {
+            print("✅ 成功卸载插件: \(identifier)")
+        } else {
+            print("❌ 卸载插件失败: \(identifier)")
+        }
+
         return success
     }
     
@@ -303,8 +335,21 @@ class VSTManagerExample: ObservableObject {
 
     func hidePluginEditor(identifier: String) {
         print("隐藏插件编辑器: \(identifier)")
-        // 这里应该调用C接口隐藏插件编辑器
-        // vstPluginInstance_hideEditor(pluginInstance)
+
+        guard let chain = processingChain else {
+            print("⚠️ 处理链未初始化")
+            return
+        }
+
+        // 查找插件在loadedPlugins中的索引
+        guard let pluginIndex = loadedPlugins.firstIndex(of: identifier) else {
+            print("⚠️ 未找到已加载的插件: \(identifier)")
+            return
+        }
+
+        // 调用C接口隐藏插件编辑器
+        audioProcessingChain_hidePluginEditor(chain, Int32(pluginIndex))
+        print("✅ 隐藏插件编辑器: \(identifier)")
     }
 
     // MARK: - 音频处理配置

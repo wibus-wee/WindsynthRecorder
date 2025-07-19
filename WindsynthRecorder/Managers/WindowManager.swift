@@ -41,8 +41,8 @@ class WindowManager: ObservableObject {
         static let vstManager = WindowConfig(
             id: "vst-manager",
             title: "VST 插件管理器",
-            defaultSize: CGSize(width: 900, height: 650),
-            minSize: CGSize(width: 700, height: 500),
+            defaultSize: CGSize(width: 1000, height: 700),
+            minSize: CGSize(width: 900, height: 600),
             resizable: true,
             level: .normal
         )

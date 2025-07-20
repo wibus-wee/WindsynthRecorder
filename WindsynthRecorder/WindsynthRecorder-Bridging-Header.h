@@ -67,6 +67,7 @@ void audioProcessingChain_prepareToPlay(AudioProcessingChainHandle handle, doubl
 void audioProcessingChain_processBlock(AudioProcessingChainHandle handle, float** audioBuffer, int numChannels, int numSamples, void* midiData, int midiDataSize);
 bool audioProcessingChain_addPlugin(AudioProcessingChainHandle handle, VSTPluginInstanceHandle plugin);
 bool audioProcessingChain_removePlugin(AudioProcessingChainHandle handle, int index);
+bool audioProcessingChain_movePlugin(AudioProcessingChainHandle handle, int fromIndex, int toIndex);
 void audioProcessingChain_clearPlugins(AudioProcessingChainHandle handle);
 
 // 插件编辑器管理

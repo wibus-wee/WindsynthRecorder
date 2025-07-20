@@ -559,6 +559,31 @@ bool audioProcessingChain_removePlugin(AudioProcessingChainHandle* handle, int i
     return false;
 }
 
+bool audioProcessingChain_movePlugin(AudioProcessingChainHandle* handle, int fromIndex, int toIndex) {
+    if (!handle || !handle->chain) {
+        NSLog(@"[VSTBridge] audioProcessingChain_movePlugin: Invalid handle");
+        return false;
+    }
+
+    NSLog(@"[VSTBridge] audioProcessingChain_movePlugin: Moving plugin from index %d to %d", fromIndex, toIndex);
+
+    try {
+        bool success = handle->chain->movePlugin(fromIndex, toIndex);
+        if (success) {
+            NSLog(@"[VSTBridge] audioProcessingChain_movePlugin: Successfully moved plugin");
+        } else {
+            NSLog(@"[VSTBridge] audioProcessingChain_movePlugin: Failed to move plugin");
+        }
+        return success;
+    } catch (const std::exception& e) {
+        NSLog(@"[VSTBridge] audioProcessingChain_movePlugin: Exception: %s", e.what());
+        return false;
+    } catch (...) {
+        NSLog(@"[VSTBridge] audioProcessingChain_movePlugin: Unknown exception");
+        return false;
+    }
+}
+
 void audioProcessingChain_clearPlugins(AudioProcessingChainHandle* handle) {
     if (handle && handle->chain) {
         handle->chain->clearPlugins();

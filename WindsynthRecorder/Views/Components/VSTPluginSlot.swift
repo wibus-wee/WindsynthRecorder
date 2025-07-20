@@ -16,6 +16,12 @@ struct ProfessionalPluginSlot: View {
     
     var body: some View {
         HStack(spacing: 12) {
+            // 拖拽指示器
+            Image(systemName: "line.3.horizontal")
+                .font(.caption)
+                .foregroundColor(.gray.opacity(0.6))
+                .frame(width: 16)
+
             // 插件图标
             RoundedRectangle(cornerRadius: 4)
                 .fill(Color.blue.opacity(0.2))

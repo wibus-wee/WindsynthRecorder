@@ -280,35 +280,40 @@ struct AudioMixerView: View {
             .padding(.top, 16)
             .padding(.bottom, 8)
 
-            ScrollView {
-                LazyVStack(spacing: 8) {
-                    if mixerService.loadedPlugins.isEmpty {
-                        VStack(spacing: 12) {
-                            Image(systemName: "music.note.list")
-                                .font(.system(size: 32))
-                                .foregroundColor(.gray)
+            if mixerService.loadedPlugins.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "music.note.list")
+                        .font(.system(size: 32))
+                        .foregroundColor(.gray)
 
-                            Text("No Plugins Loaded")
-                                .font(.system(.caption, design: .rounded))
-                                .foregroundColor(.gray)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 40)
-                    } else {
-                        ForEach(mixerService.loadedPlugins, id: \.self) { pluginIdentifier in
-                            ProfessionalPluginSlot(
-                                pluginName: getPluginDisplayName(identifier: pluginIdentifier),
-                                identifier: pluginIdentifier,
-                                vstManager: mixerService.getVSTManager(),
-                                onParametersPressed: {
-                                    selectedPluginName = pluginIdentifier
-                                    showingPluginParameters = true
-                                }
-                            )
-                        }
-                    }
+                    Text("No Plugins Loaded")
+                        .font(.system(.caption, design: .rounded))
+                        .foregroundColor(.gray)
                 }
-                .padding(.horizontal, 16)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+
+                List {
+                    ForEach(mixerService.loadedPlugins.indices, id: \.self) { index in
+                        let pluginIdentifier = mixerService.loadedPlugins[index]
+                        ProfessionalPluginSlot(
+                            pluginName: getPluginDisplayName(identifier: pluginIdentifier),
+                            identifier: pluginIdentifier,
+                            vstManager: mixerService.getVSTManager(),
+                            onParametersPressed: {
+                                selectedPluginName = pluginIdentifier
+                                showingPluginParameters = true
+                            }
+                        )
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                    }
+                    .onMove(perform: movePlugins)
+                }
+                .listStyle(.plain)
+                .background(Color.clear)
+                .scrollContentBackground(.hidden)
+                
             }
 
             Spacer()
@@ -653,6 +658,35 @@ struct AudioMixerView: View {
                 // TODO: 可以显示错误提示给用户
                 // 例如：显示 Toast 或 Alert
             }
+        }
+    }
+
+    // MARK: - 拖拽重新排序
+
+    /// 处理VST插件的拖拽重新排序（SwiftUI List版本）
+    private func movePlugins(from source: IndexSet, to destination: Int) {
+        guard let sourceIndex = source.first else { return }
+
+        // 计算目标索引（SwiftUI的onMove会传递插入位置）
+        let destinationIndex = destination > sourceIndex ? destination - 1 : destination
+
+        handlePluginMove(from: sourceIndex, to: destinationIndex)
+    }
+
+    /// 处理插件移动的核心逻辑（AppKit和SwiftUI共用）
+    private func handlePluginMove(from sourceIndex: Int, to destinationIndex: Int) {
+        print("🔄 拖拽移动插件: from \(sourceIndex) to \(destinationIndex)")
+
+        // 调用VST管理器移动插件
+        let vstManager = mixerService.getVSTManager()
+        let success = vstManager.movePlugin(from: sourceIndex, to: destinationIndex)
+
+        if success {
+            print("✅ 插件移动成功")
+            // VST管理器会自动更新loadedPlugins数组并触发UI更新
+        } else {
+            print("❌ 插件移动失败")
+            // 可以在这里显示错误提示
         }
     }
 }

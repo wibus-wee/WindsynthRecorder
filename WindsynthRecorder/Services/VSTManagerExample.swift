@@ -303,6 +303,37 @@ class VSTManagerExample: ObservableObject {
 
         return success
     }
+
+    /// 移动插件位置（用于拖拽重新排序）
+    func movePlugin(from fromIndex: Int, to toIndex: Int) -> Bool {
+        guard let chain = processingChain,
+              fromIndex >= 0 && fromIndex < loadedPlugins.count,
+              toIndex >= 0 && toIndex < loadedPlugins.count,
+              fromIndex != toIndex else {
+            print("⚠️ 移动插件参数无效: from=\(fromIndex), to=\(toIndex), count=\(loadedPlugins.count)")
+            return false
+        }
+
+        // 调用C接口移动插件
+        let success = audioProcessingChain_movePlugin(chain, Int32(fromIndex), Int32(toIndex))
+
+        if success {
+            // 同步更新Swift数组
+            let movedPlugin = loadedPlugins.remove(at: fromIndex)
+            loadedPlugins.insert(movedPlugin, at: toIndex)
+
+            print("✅ 成功移动插件: \(movedPlugin) from \(fromIndex) to \(toIndex)")
+
+            // 强制UI更新
+            DispatchQueue.main.async { [weak self] in
+                self?.objectWillChange.send()
+            }
+        } else {
+            print("❌ 移动插件失败: from \(fromIndex) to \(toIndex)")
+        }
+
+        return success
+    }
     
     func clearAllPlugins() {
         guard let chain = processingChain else { return }

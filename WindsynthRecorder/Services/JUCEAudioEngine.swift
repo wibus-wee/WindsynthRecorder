@@ -81,7 +81,7 @@ class JUCEAudioEngine: NSObject, ObservableObject {
     
     private func configureRealtimeProcessor() {
         guard let processor = realtimeProcessor else { return }
-        
+
         var config = RealtimeProcessorConfig_C(
             sampleRate: sampleRate,
             bufferSize: Int32(bufferSize),
@@ -92,10 +92,11 @@ class JUCEAudioEngine: NSObject, ObservableObject {
             monitoringGain: 1.0,
             latencyCompensationSamples: 0
         )
-        
+
         realtimeProcessor_configure(processor, &config)
-        
+
         print("🔧 JUCE Realtime Processor configured: \(sampleRate)Hz, \(bufferSize) samples, \(numChannels) channels")
+        print("📊 Audio format details - Sample Rate: \(sampleRate)Hz, Channels: \(numChannels), Buffer Size: \(bufferSize)")
     }
     
     private func setupObservers() {
@@ -128,30 +129,38 @@ class JUCEAudioEngine: NSObject, ObservableObject {
             currentTime = 0
             
             // 获取音频格式信息
-            sampleRate = file.fileFormat.sampleRate
-            numChannels = Int(file.fileFormat.channelCount)
-            
+            let fileSampleRate = file.fileFormat.sampleRate
+            let fileChannels = Int(file.fileFormat.channelCount)
+
+            print("📁 Loading audio file: \(url.lastPathComponent)")
+            print("📊 File format - Sample Rate: \(fileSampleRate)Hz, Channels: \(fileChannels)")
+
+            // 更新引擎的采样率和通道数以匹配文件
+            sampleRate = fileSampleRate
+            numChannels = fileChannels
+
             // 创建 JUCE 音频文件读取器
             guard let pathCString = url.path.cString(using: .utf8) else {
                 errorMessage = "Failed to convert file path to C string"
                 return
             }
             audioFileReader = audioFileReader_create(pathCString)
-            
+
             guard audioFileReader != nil else {
                 errorMessage = "Failed to create JUCE audio file reader"
                 return
             }
-            
-            // 创建传输源
+
+            // 创建传输源（现在不会进行自动重采样）
             transportSource = audioTransportSource_create(audioFileReader)
             guard let transport = transportSource else {
                 errorMessage = "Failed to create JUCE transport source"
                 return
             }
 
-            // 准备音频传输源
+            // 准备音频传输源，使用文件的原始采样率
             audioTransportSource_prepareToPlay(transport, Int32(bufferSize), sampleRate)
+            print("🎵 AudioTransportSource prepared with sample rate: \(sampleRate)Hz")
             
             // 重新配置音频引擎以匹配文件格式
             reconfigureForAudioFile()
@@ -168,15 +177,17 @@ class JUCEAudioEngine: NSObject, ObservableObject {
     
     private func reconfigureForAudioFile() {
         guard let processor = realtimeProcessor else { return }
-        
+
+        print("🔄 Reconfiguring audio engine for file with \(sampleRate)Hz, \(numChannels) channels")
+
         // 停止当前处理
         if realtimeProcessor_isRunning(processor) {
             realtimeProcessor_stop(processor)
         }
-        
-        // 重新配置处理器
+
+        // 重新配置处理器以匹配文件格式
         configureRealtimeProcessor()
-        
+
         // 配置音频处理链
         if let chain = audioProcessingChain {
             var chainConfig = ProcessingChainConfig_C()
@@ -190,8 +201,10 @@ class JUCEAudioEngine: NSObject, ObservableObject {
 
             // 准备处理链以便插件能正确初始化
             audioProcessingChain_prepareToPlay(chain, sampleRate, Int32(bufferSize))
-            print("🔧 Audio processing chain prepared: \(sampleRate)Hz, \(bufferSize) samples")
+            print("🔧 Audio processing chain reconfigured: \(sampleRate)Hz, \(bufferSize) samples")
         }
+
+        print("✅ Audio engine reconfiguration completed for \(sampleRate)Hz")
         
         // 配置 VST 管理器
         vstManager.configureAudioProcessing(

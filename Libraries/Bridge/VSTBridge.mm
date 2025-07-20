@@ -932,13 +932,19 @@ AudioTransportSourceHandle audioTransportSource_create(AudioFileReaderHandle rea
             readerHandle->reader.get(), false  // 不删除 reader，因为它由 AudioFileReaderHandle 管理
         );
 
-        // 设置传输源
+        // 设置传输源 - 不传递采样率参数以避免自动重采样
+        // 传递 0 作为采样率参数，让音频设备和文件采样率直接匹配
         handle->transportSource->setSource(
             handle->readerSource.get(),
             32768,  // 预读缓冲区大小
             handle->backgroundThread.get(),  // 后台线程
-            readerHandle->reader->sampleRate  // 采样率
+            0  // 不进行采样率校正，避免意外的重采样导致播放速度异常
         );
+
+        // 记录音频文件信息用于调试
+        std::cout << "[VSTBridge] AudioTransportSource created for file with sample rate: "
+                  << readerHandle->reader->sampleRate << "Hz, channels: "
+                  << readerHandle->reader->numChannels << std::endl;
 
         return reinterpret_cast<AudioTransportSourceHandle>(handle);
     } catch (...) {

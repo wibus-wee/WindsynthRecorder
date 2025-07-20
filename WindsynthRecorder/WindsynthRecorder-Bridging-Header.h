@@ -70,6 +70,10 @@ bool audioProcessingChain_removePlugin(AudioProcessingChainHandle handle, int in
 bool audioProcessingChain_movePlugin(AudioProcessingChainHandle handle, int fromIndex, int toIndex);
 void audioProcessingChain_clearPlugins(AudioProcessingChainHandle handle);
 
+// 插件开关控制（旁路功能）
+void audioProcessingChain_setPluginBypassed(AudioProcessingChainHandle handle, int index, bool bypassed);
+bool audioProcessingChain_isPluginBypassed(AudioProcessingChainHandle handle, int index);
+
 // 插件编辑器管理
 bool audioProcessingChain_showPluginEditor(AudioProcessingChainHandle handle, int index);
 void audioProcessingChain_hidePluginEditor(AudioProcessingChainHandle handle, int index);

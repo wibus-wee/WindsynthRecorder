@@ -13,6 +13,8 @@ struct ProfessionalPluginSlot: View {
     let identifier: String
     let vstManager: VSTManagerExample
     let onParametersPressed: () -> Void
+
+    @State private var isEnabled: Bool = true
     
     var body: some View {
         HStack(spacing: 12) {
@@ -22,15 +24,6 @@ struct ProfessionalPluginSlot: View {
                 .foregroundColor(.gray.opacity(0.6))
                 .frame(width: 16)
 
-            // 插件图标
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color.blue.opacity(0.2))
-                .frame(width: 32, height: 32)
-                .overlay(
-                    Image(systemName: "music.note")
-                        .foregroundColor(.blue)
-                )
-            
             // 插件信息
             VStack(alignment: .leading, spacing: 2) {
                 Text(pluginName)
@@ -47,6 +40,27 @@ struct ProfessionalPluginSlot: View {
             
             // 控制按钮
             HStack(spacing: 6) {
+                // 开关按钮
+                Button(action: {
+                    isEnabled.toggle()
+                    _ = vstManager.setPluginEnabled(identifier: identifier, enabled: isEnabled)
+                }) {
+                    Image(systemName: isEnabled ? "power.circle.fill" : "power.circle")
+                        .font(.caption)
+                        .foregroundColor(isEnabled ? .green : .gray)
+                        .frame(width: 24, height: 24)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill((isEnabled ? Color.green : Color.gray).opacity(0.1))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke((isEnabled ? Color.green : Color.gray).opacity(0.3), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .help(isEnabled ? "禁用插件" : "启用插件")
+
                 Button(action: {
                     vstManager.showPluginEditor(identifier: identifier)
                 }) {
@@ -64,7 +78,8 @@ struct ProfessionalPluginSlot: View {
                         )
                 }
                 .buttonStyle(.plain)
-                
+                .help("打开插件编辑器")
+
                 Button(action: onParametersPressed) {
                     Image(systemName: "gear")
                         .font(.caption)
@@ -80,6 +95,7 @@ struct ProfessionalPluginSlot: View {
                         )
                 }
                 .buttonStyle(.plain)
+                .help("插件参数设置")
                 
                 Button(action: {
                     _ = vstManager.unloadPlugin(identifier: identifier)
@@ -103,11 +119,17 @@ struct ProfessionalPluginSlot: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color.black.opacity(0.2))
+                .fill(Color.black.opacity(isEnabled ? 0.2 : 0.4))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                .stroke((isEnabled ? Color.gray : Color.red).opacity(0.2), lineWidth: 1)
         )
+        .opacity(isEnabled ? 1.0 : 0.6)
+        .animation(.easeInOut(duration: 0.2), value: isEnabled)
+        .onAppear {
+            // 初始化插件状态
+            isEnabled = vstManager.isPluginEnabled(identifier: identifier)
+        }
     }
 }

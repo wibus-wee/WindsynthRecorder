@@ -334,7 +334,47 @@ class VSTManagerExample: ObservableObject {
 
         return success
     }
-    
+
+    // MARK: - 插件开关控制
+
+    /// 设置插件的开关状态（旁路功能）
+    func setPluginEnabled(identifier: String, enabled: Bool) -> Bool {
+        guard let chain = processingChain,
+              let index = loadedPlugins.firstIndex(of: identifier) else {
+            print("⚠️ 插件未找到或处理链未初始化: \(identifier)")
+            return false
+        }
+
+        // 调用C接口设置旁路状态（注意：bypassed与enabled相反）
+        audioProcessingChain_setPluginBypassed(chain, Int32(index), !enabled)
+
+        print("✅ 插件 \(identifier) 已\(enabled ? "启用" : "禁用")")
+
+        // 强制UI更新
+        DispatchQueue.main.async { [weak self] in
+            self?.objectWillChange.send()
+        }
+
+        return true
+    }
+
+    /// 获取插件的开关状态
+    func isPluginEnabled(identifier: String) -> Bool {
+        guard let chain = processingChain,
+              let index = loadedPlugins.firstIndex(of: identifier) else {
+            return false
+        }
+
+        // 调用C接口获取旁路状态（注意：bypassed与enabled相反）
+        return !audioProcessingChain_isPluginBypassed(chain, Int32(index))
+    }
+
+    /// 切换插件的开关状态
+    func togglePluginEnabled(identifier: String) -> Bool {
+        let currentState = isPluginEnabled(identifier: identifier)
+        return setPluginEnabled(identifier: identifier, enabled: !currentState)
+    }
+
     func clearAllPlugins() {
         guard let chain = processingChain else { return }
         

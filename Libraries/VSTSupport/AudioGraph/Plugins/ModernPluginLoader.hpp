@@ -140,7 +140,7 @@ public:
      * 获取所有已知插件
      * @return 插件描述列表
      */
-    const juce::Array<juce::PluginDescription>& getKnownPlugins() const;
+    juce::Array<juce::PluginDescription> getKnownPlugins() const;
     
     /**
      * 按类别获取插件

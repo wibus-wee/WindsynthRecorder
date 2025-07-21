@@ -185,77 +185,105 @@ bool PluginManager::renamePlugin(NodeID nodeID, const std::string& newName) {
 
 std::vector<PluginManager::ParameterInfo> PluginManager::getPluginParameters(NodeID nodeID) const {
     std::vector<ParameterInfo> parameters;
-    
+
     auto* instance = getPluginInstance(nodeID);
     if (!instance) {
         return parameters;
     }
-    
-    int numParams = instance->getNumParameters();
-    parameters.reserve(numParams);
-    
-    for (int i = 0; i < numParams; ++i) {
-        ParameterInfo param;
-        param.index = i;
-        param.name = instance->getParameterName(i).toStdString();
-        param.label = instance->getParameterLabel(i).toStdString();
-        param.value = instance->getParameter(i);
-        param.defaultValue = instance->getParameterDefaultValue(i);
-        param.isAutomatable = true; // 大多数参数都可自动化
-        param.isDiscrete = instance->isParameterDiscrete(i);
-        param.numSteps = instance->getParameterNumSteps(i);
-        
-        parameters.push_back(param);
+
+    // 使用现代JUCE参数API
+    auto& parameterArray = instance->getParameters();
+    parameters.reserve(parameterArray.size());
+
+    for (int i = 0; i < parameterArray.size(); ++i) {
+        auto* param = parameterArray[i];
+        if (!param) continue;
+
+        ParameterInfo paramInfo;
+        paramInfo.index = i;
+        paramInfo.name = param->getName(256).toStdString();
+        paramInfo.label = param->getLabel().toStdString();
+        paramInfo.value = param->getValue();
+        paramInfo.defaultValue = param->getDefaultValue();
+        paramInfo.isAutomatable = true;
+        paramInfo.isDiscrete = param->isDiscrete();
+        paramInfo.numSteps = param->getNumSteps();
+
+        parameters.push_back(paramInfo);
     }
-    
+
     return parameters;
 }
 
 float PluginManager::getParameterValue(NodeID nodeID, int parameterIndex) const {
     auto* instance = getPluginInstance(nodeID);
-    if (!instance || parameterIndex < 0 || parameterIndex >= instance->getNumParameters()) {
+    if (!instance) {
         return 0.0f;
     }
-    
-    return instance->getParameter(parameterIndex);
+
+    auto& params = instance->getParameters();
+    if (parameterIndex < 0 || parameterIndex >= params.size()) {
+        return 0.0f;
+    }
+
+    auto* param = params[parameterIndex];
+    return param ? param->getValue() : 0.0f;
 }
 
 bool PluginManager::setParameterValue(NodeID nodeID, int parameterIndex, float value) {
     auto* instance = getPluginInstance(nodeID);
-    if (!instance || parameterIndex < 0 || parameterIndex >= instance->getNumParameters()) {
+    if (!instance) {
         return false;
     }
-    
-    instance->setParameter(parameterIndex, value);
-    notifyParameterChanged(nodeID, parameterIndex, value);
-    
-    return true;
+
+    auto& params = instance->getParameters();
+    if (parameterIndex < 0 || parameterIndex >= params.size()) {
+        return false;
+    }
+
+    auto* param = params[parameterIndex];
+    if (param) {
+        param->setValue(value);
+        notifyParameterChanged(nodeID, parameterIndex, value);
+        return true;
+    }
+
+    return false;
 }
 
 std::string PluginManager::getParameterText(NodeID nodeID, int parameterIndex) const {
     auto* instance = getPluginInstance(nodeID);
-    if (!instance || parameterIndex < 0 || parameterIndex >= instance->getNumParameters()) {
+    if (!instance) {
         return "";
     }
-    
-    return instance->getParameterText(parameterIndex).toStdString();
+
+    auto& params = instance->getParameters();
+    if (parameterIndex < 0 || parameterIndex >= params.size()) {
+        return "";
+    }
+
+    auto* param = params[parameterIndex];
+    return param ? param->getText(param->getValue(), 256).toStdString() : "";
 }
 
 bool PluginManager::resetParametersToDefault(NodeID nodeID) {
     std::cout << "[PluginManager] 重置插件参数到默认值：" << nodeID.uid << std::endl;
-    
+
     auto* instance = getPluginInstance(nodeID);
     if (!instance) {
         return false;
     }
-    
-    int numParams = instance->getNumParameters();
-    for (int i = 0; i < numParams; ++i) {
-        float defaultValue = instance->getParameterDefaultValue(i);
-        instance->setParameter(i, defaultValue);
-        notifyParameterChanged(nodeID, i, defaultValue);
+
+    auto& params = instance->getParameters();
+    for (int i = 0; i < params.size(); ++i) {
+        auto* param = params[i];
+        if (param) {
+            float defaultValue = param->getDefaultValue();
+            param->setValue(defaultValue);
+            notifyParameterChanged(nodeID, i, defaultValue);
+        }
     }
-    
+
     return true;
 }
 

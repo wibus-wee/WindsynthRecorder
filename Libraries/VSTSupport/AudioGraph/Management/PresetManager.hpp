@@ -426,7 +426,6 @@ private:
     bool applyGraphState(const GraphState& state);
     std::string generateUniqueId() const;
     void notifyStateChanged();
-    void performAutoBackup();
     
     // 序列化方法
     std::unique_ptr<juce::XmlElement> serializePresetData(const PresetData& data) const;

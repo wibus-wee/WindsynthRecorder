@@ -138,7 +138,7 @@ void ModernPluginLoader::stopScanning() {
 // 插件查询实现
 //==============================================================================
 
-const juce::Array<juce::PluginDescription>& ModernPluginLoader::getKnownPlugins() const {
+juce::Array<juce::PluginDescription> ModernPluginLoader::getKnownPlugins() const {
     std::lock_guard<std::mutex> lock(listMutex);
     return knownPluginList.getTypes();
 }
@@ -214,7 +214,14 @@ juce::Array<juce::PluginDescription> ModernPluginLoader::searchPlugins(const juc
 
 const juce::PluginDescription* ModernPluginLoader::findPluginByFile(const juce::String& fileOrIdentifier) const {
     std::lock_guard<std::mutex> lock(listMutex);
-    return knownPluginList.getTypeForFile(fileOrIdentifier);
+
+    for (const auto& plugin : knownPluginList.getTypes()) {
+        if (plugin.fileOrIdentifier == fileOrIdentifier) {
+            return &plugin;
+        }
+    }
+
+    return nullptr;
 }
 
 //==============================================================================
@@ -384,7 +391,9 @@ void ModernPluginLoader::performScan(const juce::FileSearchPath& paths, bool rec
         std::cout << "[ModernPluginLoader] 扫描路径：" << path.getFullPathName() << std::endl;
 
         for (auto* format : formatManager.getFormats()) {
-            auto filesForFormat = format->searchPathsForPlugins(juce::FileSearchPath(path), recursive);
+            juce::FileSearchPath searchPath;
+            searchPath.add(path);
+            auto filesForFormat = format->searchPathsForPlugins(searchPath, recursive);
             allFiles.addArray(filesForFormat);
         }
     }

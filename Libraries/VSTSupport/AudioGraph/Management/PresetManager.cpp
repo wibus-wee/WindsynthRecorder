@@ -20,11 +20,13 @@ namespace WindsynthVST::AudioGraph {
 class AutoBackupTimer : public juce::Timer {
 public:
     AutoBackupTimer(PresetManager& manager) : presetManager(manager) {}
-    
+
     void timerCallback() override {
-        presetManager.performAutoBackup();
+        // 调用公共方法来创建备份
+        presetManager.createBackup();
+        presetManager.cleanupOldBackups(10);
     }
-    
+
 private:
     PresetManager& presetManager;
 };
@@ -770,12 +772,6 @@ void PresetManager::notifyStateChanged() {
     }
 }
 
-void PresetManager::performAutoBackup() {
-    if (autoBackupEnabled) {
-        std::cout << "[PresetManager] 执行自动备份" << std::endl;
-        createBackup();
-        cleanupOldBackups(10); // 保留最近10个备份
-    }
-}
+
 
 } // namespace WindsynthVST::AudioGraph

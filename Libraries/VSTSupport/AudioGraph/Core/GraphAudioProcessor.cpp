@@ -178,11 +178,60 @@ void GraphAudioProcessor::changeProgramName(int index, const juce::String& newNa
 }
 
 void GraphAudioProcessor::getStateInformation(juce::MemoryBlock& destData) {
-    audioGraph.getStateInformation(destData);
+    // 创建XML来保存状态
+    auto xml = std::make_unique<juce::XmlElement>("GraphAudioProcessorState");
+
+    // 保存配置
+    auto configXml = xml->createNewChildElement("Configuration");
+    configXml->setAttribute("sampleRate", currentConfig.sampleRate);
+    configXml->setAttribute("samplesPerBlock", currentConfig.samplesPerBlock);
+    configXml->setAttribute("numInputChannels", currentConfig.numInputChannels);
+    configXml->setAttribute("numOutputChannels", currentConfig.numOutputChannels);
+    configXml->setAttribute("enableMidi", currentConfig.enableMidi);
+
+    // 保存图状态
+    juce::MemoryBlock graphData;
+    audioGraph.getStateInformation(graphData);
+    if (graphData.getSize() > 0) {
+        auto graphXml = xml->createNewChildElement("GraphState");
+        graphXml->addTextElement(juce::Base64::toBase64(graphData.getData(), graphData.getSize()));
+    }
+
+    // 转换为内存块
+    copyXmlToBinary(*xml, destData);
 }
 
 void GraphAudioProcessor::setStateInformation(const void* data, int sizeInBytes) {
-    audioGraph.setStateInformation(data, sizeInBytes);
+    // 从内存块解析XML
+    auto xml = getXmlFromBinary(data, sizeInBytes);
+    if (!xml || xml->getTagName() != "GraphAudioProcessorState") {
+        return;
+    }
+
+    // 恢复配置
+    auto configXml = xml->getChildByName("Configuration");
+    if (configXml) {
+        GraphConfig newConfig;
+        newConfig.sampleRate = configXml->getDoubleAttribute("sampleRate", 44100.0);
+        newConfig.samplesPerBlock = configXml->getIntAttribute("samplesPerBlock", 512);
+        newConfig.numInputChannels = configXml->getIntAttribute("numInputChannels", 2);
+        newConfig.numOutputChannels = configXml->getIntAttribute("numOutputChannels", 2);
+        newConfig.enableMidi = configXml->getBoolAttribute("enableMidi", true);
+
+        configure(newConfig);
+    }
+
+    // 恢复图状态
+    auto graphXml = xml->getChildByName("GraphState");
+    if (graphXml) {
+        juce::String base64Data = graphXml->getAllSubText();
+        if (base64Data.isNotEmpty()) {
+            juce::MemoryOutputStream stream;
+            if (juce::Base64::convertFromBase64(stream, base64Data)) {
+                audioGraph.setStateInformation(stream.getData(), static_cast<int>(stream.getDataSize()));
+            }
+        }
+    }
 }
 
 //==============================================================================
@@ -298,7 +347,7 @@ bool GraphAudioProcessor::isValidNodeID(NodeID nodeID) const {
 }
 
 NodeID GraphAudioProcessor::getNextNodeID() {
-    return NodeID{nodeIDCounter.fetch_add(1)};
+    return NodeID{static_cast<juce::uint32>(nodeIDCounter.fetch_add(1))};
 }
 
 //==============================================================================

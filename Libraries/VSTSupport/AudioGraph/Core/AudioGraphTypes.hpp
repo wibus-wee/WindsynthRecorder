@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include <unordered_map>
 
 namespace WindsynthVST::AudioGraph {
 
@@ -223,3 +224,16 @@ inline Connection makeMidiConnection(NodeID sourceNode, NodeID destNode) {
 }
 
 } // namespace WindsynthVST::AudioGraph
+
+//==============================================================================
+// 为NodeID提供std::hash特化，使其可以用作unordered_map的键
+//==============================================================================
+
+namespace std {
+    template<>
+    struct hash<juce::AudioProcessorGraph::NodeID> {
+        std::size_t operator()(const juce::AudioProcessorGraph::NodeID& nodeID) const noexcept {
+            return std::hash<juce::uint32>{}(nodeID.uid);
+        }
+    };
+}

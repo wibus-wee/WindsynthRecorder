@@ -3,6 +3,7 @@
 #include "../VSTSupport/VSTPluginManager.hpp"
 #include "../VSTSupport/AudioProcessingChain.hpp"
 #include "../VSTSupport/RealtimeProcessor.hpp"
+#include "../VSTSupport/OfflineProcessor.hpp"
 #include <memory>
 #include <string>
 #include <cstring>
@@ -44,6 +45,26 @@ struct AudioProcessingChainHandle {
     void* errorUserData;
 
     AudioProcessingChainHandle() : errorCallback(nullptr), errorUserData(nullptr) {}
+};
+
+struct OfflineProcessorHandle_Internal {
+    std::unique_ptr<OfflineProcessor> processor;
+    OfflineProcessor::ProgressCallback progressCallback;
+    OfflineProcessor::CompletionCallback completionCallback;
+    ErrorCallback errorCallback;
+    void* progressUserData;
+    void* completionUserData;
+    void* errorUserData;
+
+    OfflineProcessorHandle_Internal() :
+        progressCallback(nullptr),
+        completionCallback(nullptr),
+        errorCallback(nullptr),
+        progressUserData(nullptr),
+        completionUserData(nullptr),
+        errorUserData(nullptr) {
+        processor = std::make_unique<OfflineProcessor>();
+    }
 };
 
 // VSTAudioUnit 已移除，不再需要此结构体
@@ -1109,6 +1130,269 @@ void realtimeProcessor_setAudioCallback(RealtimeProcessorHandle handle, Realtime
     } catch (...) {
         // 忽略异常
     }
+}
+
+// ============================================================================
+// OfflineProcessor 接口实现
+// ============================================================================
+
+OfflineProcessorHandle* offlineProcessor_create() {
+    try {
+        auto handle = new OfflineProcessorHandle_Internal();
+        if (!handle->processor) {
+            delete handle;
+            return nullptr;
+        }
+
+        // 设置默认的错误回调
+        handle->processor->setErrorCallback([handle](const std::string& error) {
+            if (handle->errorCallback) {
+                const char* errorPtr = error.c_str();
+                handle->errorCallback(errorPtr, handle->errorUserData);
+            }
+        });
+
+        return reinterpret_cast<OfflineProcessorHandle*>(handle);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void offlineProcessor_destroy(OfflineProcessorHandle* handle) {
+    if (handle) {
+        auto* internalHandle = reinterpret_cast<OfflineProcessorHandle_Internal*>(handle);
+        delete internalHandle;
+    }
+}
+
+const char* offlineProcessor_addTask(OfflineProcessorHandle* handle,
+                                   const char* inputFilePath,
+                                   const char* outputFilePath,
+                                   const OfflineProcessingConfig_C* config,
+                                   AudioProcessingChainHandle* processingChain) {
+    if (!handle || !inputFilePath || !outputFilePath || !config) {
+        return nullptr;
+    }
+
+    auto* internalHandle = reinterpret_cast<OfflineProcessorHandle_Internal*>(handle);
+    if (!internalHandle->processor) {
+        return nullptr;
+    }
+
+    try {
+        // 转换文件路径，确保正确的UTF-8编码
+        juce::String inputPathString = juce::String::fromUTF8(inputFilePath);
+        juce::String outputPathString = juce::String::fromUTF8(outputFilePath);
+
+        juce::File inputFile(inputPathString);
+        juce::File outputFile(outputPathString);
+
+        // 转换配置
+        OfflineProcessingConfig cppConfig;
+        cppConfig.sampleRate = config->sampleRate;
+        cppConfig.bufferSize = config->bufferSize;
+        cppConfig.numChannels = config->numChannels;
+        cppConfig.normalizeOutput = config->normalizeOutput;
+        cppConfig.outputGain = config->outputGain;
+        cppConfig.enableDithering = config->enableDithering;
+        cppConfig.outputBitDepth = config->outputBitDepth;
+
+        // 获取处理链
+        std::shared_ptr<AudioProcessingChain> chain = nullptr;
+        if (processingChain) {
+            auto* chainHandle = reinterpret_cast<AudioProcessingChainHandle*>(processingChain);
+            if (chainHandle->chain) {
+                // 创建处理链的共享指针
+                chain = std::shared_ptr<AudioProcessingChain>(chainHandle->chain.get(), [](AudioProcessingChain*){});
+            }
+        }
+
+        // 添加任务
+        std::string taskId = internalHandle->processor->addTask(inputFile, outputFile, cppConfig, chain);
+
+        // 返回任务ID（需要保持字符串生命周期）
+        static std::string lastTaskId = taskId;
+        lastTaskId = taskId;
+        return lastTaskId.c_str();
+
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+bool offlineProcessor_removeTask(OfflineProcessorHandle* handle, const char* taskId) {
+    if (!handle || !taskId) {
+        return false;
+    }
+
+    auto* internalHandle = reinterpret_cast<OfflineProcessorHandle_Internal*>(handle);
+    if (!internalHandle->processor) {
+        return false;
+    }
+
+    try {
+        return internalHandle->processor->removeTask(std::string(taskId));
+    } catch (...) {
+        return false;
+    }
+}
+
+void offlineProcessor_clearTasks(OfflineProcessorHandle* handle) {
+    if (!handle) {
+        return;
+    }
+
+    auto* internalHandle = reinterpret_cast<OfflineProcessorHandle_Internal*>(handle);
+    if (!internalHandle->processor) {
+        return;
+    }
+
+    try {
+        internalHandle->processor->clearTasks();
+    } catch (...) {
+        // 忽略异常
+    }
+}
+
+void offlineProcessor_startProcessing(OfflineProcessorHandle* handle) {
+    if (!handle) {
+        return;
+    }
+
+    auto* internalHandle = reinterpret_cast<OfflineProcessorHandle_Internal*>(handle);
+    if (!internalHandle->processor) {
+        return;
+    }
+
+    try {
+        internalHandle->processor->startProcessing();
+    } catch (...) {
+        // 忽略异常
+    }
+}
+
+void offlineProcessor_stopProcessing(OfflineProcessorHandle* handle) {
+    if (!handle) {
+        return;
+    }
+
+    auto* internalHandle = reinterpret_cast<OfflineProcessorHandle_Internal*>(handle);
+    if (!internalHandle->processor) {
+        return;
+    }
+
+    try {
+        internalHandle->processor->stopProcessing();
+    } catch (...) {
+        // 忽略异常
+    }
+}
+
+bool offlineProcessor_isProcessing(OfflineProcessorHandle* handle) {
+    if (!handle) {
+        return false;
+    }
+
+    auto* internalHandle = reinterpret_cast<OfflineProcessorHandle_Internal*>(handle);
+    if (!internalHandle->processor) {
+        return false;
+    }
+
+    try {
+        return internalHandle->processor->isProcessing();
+    } catch (...) {
+        return false;
+    }
+}
+
+TaskStatus_C offlineProcessor_getTaskStatus(OfflineProcessorHandle* handle, const char* taskId) {
+    if (!handle || !taskId) {
+        return TASK_STATUS_FAILED;
+    }
+
+    auto* internalHandle = reinterpret_cast<OfflineProcessorHandle_Internal*>(handle);
+    if (!internalHandle->processor) {
+        return TASK_STATUS_FAILED;
+    }
+
+    try {
+        auto status = internalHandle->processor->getTaskStatus(std::string(taskId));
+
+        // 转换状态枚举
+        switch (status) {
+            case ProcessingTask::Status::Pending:
+                return TASK_STATUS_PENDING;
+            case ProcessingTask::Status::Processing:
+                return TASK_STATUS_PROCESSING;
+            case ProcessingTask::Status::Completed:
+                return TASK_STATUS_COMPLETED;
+            case ProcessingTask::Status::Failed:
+                return TASK_STATUS_FAILED;
+            case ProcessingTask::Status::Cancelled:
+                return TASK_STATUS_CANCELLED;
+            default:
+                return TASK_STATUS_FAILED;
+        }
+    } catch (...) {
+        return TASK_STATUS_FAILED;
+    }
+}
+
+double offlineProcessor_getTaskProgress(OfflineProcessorHandle* handle, const char* taskId) {
+    if (!handle || !taskId) {
+        return 0.0;
+    }
+
+    auto* internalHandle = reinterpret_cast<OfflineProcessorHandle_Internal*>(handle);
+    if (!internalHandle->processor) {
+        return 0.0;
+    }
+
+    try {
+        return internalHandle->processor->getTaskProgress(std::string(taskId));
+    } catch (...) {
+        return 0.0;
+    }
+}
+
+double offlineProcessor_getOverallProgress(OfflineProcessorHandle* handle) {
+    if (!handle) {
+        return 0.0;
+    }
+
+    auto* internalHandle = reinterpret_cast<OfflineProcessorHandle_Internal*>(handle);
+    if (!internalHandle->processor) {
+        return 0.0;
+    }
+
+    try {
+        return internalHandle->processor->getOverallProgress();
+    } catch (...) {
+        return 0.0;
+    }
+}
+
+void offlineProcessor_setErrorCallback(OfflineProcessorHandle* handle,
+                                     ErrorCallback callback, void* userData) {
+    if (!handle) {
+        return;
+    }
+
+    auto* internalHandle = reinterpret_cast<OfflineProcessorHandle_Internal*>(handle);
+    if (!internalHandle->processor) {
+        return;
+    }
+
+    internalHandle->errorCallback = callback;
+    internalHandle->errorUserData = userData;
+
+    // 更新处理器的错误回调
+    internalHandle->processor->setErrorCallback([internalHandle](const std::string& error) {
+        if (internalHandle->errorCallback) {
+            const char* errorPtr = error.c_str();
+            internalHandle->errorCallback(errorPtr, internalHandle->errorUserData);
+        }
+    });
 }
 
 

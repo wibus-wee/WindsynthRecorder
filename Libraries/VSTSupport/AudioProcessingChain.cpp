@@ -110,22 +110,22 @@ void AudioProcessingChain::prepareToPlay(double sampleRate, int samplesPerBlock)
 
 void AudioProcessingChain::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages) {
     if (!isPrepared || !enabled || masterBypass) {
-        std::cout << "[AudioProcessingChain] processBlock: Skipping - isPrepared=" << isPrepared
-                  << ", enabled=" << enabled << ", masterBypass=" << masterBypass << std::endl;
+        // std::cout << "[AudioProcessingChain] processBlock: Skipping - isPrepared=" << isPrepared
+        //           << ", enabled=" << enabled << ", masterBypass=" << masterBypass << std::endl;
         return;
     }
 
     // 验证缓冲区
     if (buffer.getNumSamples() <= 0 || buffer.getNumChannels() <= 0) {
-        std::cout << "[AudioProcessingChain] processBlock: Invalid buffer - samples=" << buffer.getNumSamples()
-                  << ", channels=" << buffer.getNumChannels() << std::endl;
+        // std::cout << "[AudioProcessingChain] processBlock: Invalid buffer - samples=" << buffer.getNumSamples()
+        //           << ", channels=" << buffer.getNumChannels() << std::endl;
         return;
     }
 
     auto startTime = juce::Time::getHighResolutionTicks();
 
-    std::cout << "[AudioProcessingChain] processBlock: Processing " << buffer.getNumSamples()
-              << " samples, " << buffer.getNumChannels() << " channels, " << nodes.size() << " plugins" << std::endl;
+    // std::cout << "[AudioProcessingChain] processBlock: Processing " << buffer.getNumSamples()
+    //           << " samples, " << buffer.getNumChannels() << " channels, " << nodes.size() << " plugins" << std::endl;
 
     // 预处理回调
     if (preProcessingCallback) {
@@ -140,10 +140,10 @@ void AudioProcessingChain::processBlock(juce::AudioBuffer<float>& buffer, juce::
             auto& node = nodes[i];
             if (node && node->isEnabled()) {
                 try {
-                    std::cout << "[AudioProcessingChain] processBlock: Processing plugin " << i
-                              << " (" << node->getName() << ")" << std::endl;
+                    // std::cout << "[AudioProcessingChain] processBlock: Processing plugin " << i
+                    //           << " (" << node->getName() << ")" << std::endl;
                     node->processBlock(buffer, midiMessages);
-                    std::cout << "[AudioProcessingChain] processBlock: Plugin " << i << " processed successfully" << std::endl;
+                    // std::cout << "[AudioProcessingChain] processBlock: Plugin " << i << " processed successfully" << std::endl;
                 } catch (const std::exception& e) {
                     std::cout << "[AudioProcessingChain] processBlock: Plugin " << i << " error: " << e.what() << std::endl;
                     onError("插件处理错误: " + node->getName() + " - " + e.what());
@@ -167,7 +167,7 @@ void AudioProcessingChain::processBlock(juce::AudioBuffer<float>& buffer, juce::
     double processingTime = juce::Time::highResolutionTicksToSeconds(endTime - startTime) * 1000.0; // 转换为毫秒
     updatePerformanceStats(processingTime);
 
-    std::cout << "[AudioProcessingChain] processBlock: Completed in " << processingTime << "ms" << std::endl;
+    // std::cout << "[AudioProcessingChain] processBlock: Completed in " << processingTime << "ms" << std::endl;
 }
 
 void AudioProcessingChain::releaseResources() {

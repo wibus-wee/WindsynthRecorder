@@ -22,6 +22,12 @@ struct AudioMixerView: View {
     @State private var masterVolume: Float = 0.8
     @State private var inputGain: Float = 0.6
 
+    // 导出相关状态
+    @State private var showingExportOptions = false
+    @State private var showingExportProgress = false
+    @State private var exportConfig = AudioExportConfig.forWebSharing()
+    @StateObject private var exportService = AudioExportService()
+
     // 波形数据
     @State private var waveformData: [Float] = []
     @State private var isLoadingWaveform = false
@@ -88,6 +94,20 @@ struct AudioMixerView: View {
                 )
             }
         }
+        .sheet(isPresented: $showingExportOptions) {
+            AudioExportOptionsView(
+                config: $exportConfig,
+                exportService: exportService,
+                currentAudioURL: mixerService.getCurrentAudioURL(),
+                isPresented: $showingExportOptions
+            )
+        }
+        .sheet(isPresented: $showingExportProgress) {
+            AudioExportProgressView(
+                exportService: exportService,
+                isPresented: $showingExportProgress
+            )
+        }
         .onReceive(mixerService.$errorMessage) { error in
             if let error = error {
                 print("Mixer error: \(error)")
@@ -111,6 +131,31 @@ struct AudioMixerView: View {
                 Text("WindsynthRecorder")
                     .font(.system(.title3, design: .rounded, weight: .semibold))
                     .foregroundColor(.white)
+            }
+
+            Spacer()
+
+            // 导出控制按钮
+            HStack(spacing: 12) {
+                // 快速导出按钮
+                Button(action: {
+                    showingExportOptions = true
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 12, weight: .medium))
+                        Text("导出")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.orange.opacity(0.2))
+                    .foregroundColor(.orange)
+                    .cornerRadius(4)
+                }
+                .buttonStyle(.plain)
+                .help("导出当前音频")
+                .disabled(mixerService.currentFileName.isEmpty)
             }
 
             Spacer()

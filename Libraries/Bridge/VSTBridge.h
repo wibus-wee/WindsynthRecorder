@@ -346,6 +346,8 @@ void offlineProcessor_setProgressCallback(OfflineProcessorHandle* handle,
                                         ProcessingProgressCallback callback, void* userData);
 void offlineProcessor_setCompletionCallback(OfflineProcessorHandle* handle,
                                           ProcessingCompletionCallback callback, void* userData);
+void offlineProcessor_setErrorCallback(OfflineProcessorHandle* handle,
+                                     ErrorCallback callback, void* userData);
 
 // ============================================================================
 // JUCE 音频引擎桥接 API

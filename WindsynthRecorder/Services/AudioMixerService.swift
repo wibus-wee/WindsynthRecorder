@@ -200,6 +200,11 @@ class AudioMixerService: NSObject, ObservableObject {
         // TODO: 实现 JUCE 音频引擎的音量控制
     }
 
+    /// 获取当前音频文件URL
+    func getCurrentAudioURL() -> URL? {
+        return currentAudioURL
+    }
+
     /// 获取VST管理器
     func getVSTManager() -> VSTManagerExample {
         return juceAudioEngine.getVSTManager()

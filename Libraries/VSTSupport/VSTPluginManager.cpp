@@ -35,14 +35,127 @@ VSTPluginInstance::~VSTPluginInstance() {
 
 void VSTPluginInstance::prepareToPlay(double sampleRate, int samplesPerBlock) {
     if (pluginInstance) {
+        // 确保插件有正确的总线配置
+        auto layout = pluginInstance->getBusesLayout();
+        auto inputBuses = layout.inputBuses;
+        auto outputBuses = layout.outputBuses;
+
+        // 如果没有配置总线，设置默认的立体声配置
+        if (inputBuses.isEmpty() && outputBuses.isEmpty()) {
+            juce::AudioProcessor::BusesLayout newLayout;
+            newLayout.inputBuses.add(juce::AudioChannelSet::stereo());
+            newLayout.outputBuses.add(juce::AudioChannelSet::stereo());
+
+            if (!pluginInstance->setBusesLayout(newLayout)) {
+                std::cout << "[VSTPluginInstance] Warning: Failed to set default stereo layout" << std::endl;
+                // 尝试单声道配置
+                newLayout.inputBuses.clear();
+                newLayout.outputBuses.clear();
+                newLayout.inputBuses.add(juce::AudioChannelSet::mono());
+                newLayout.outputBuses.add(juce::AudioChannelSet::mono());
+
+                if (!pluginInstance->setBusesLayout(newLayout)) {
+                    std::cout << "[VSTPluginInstance] Warning: Failed to set mono layout" << std::endl;
+                }
+            }
+        }
+
+        std::cout << "[VSTPluginInstance] Preparing plugin: " << pluginInstance->getName()
+                  << " at " << sampleRate << "Hz, " << samplesPerBlock << " samples" << std::endl;
+        std::cout << "[VSTPluginInstance] Input buses: " << inputBuses.size()
+                  << ", Output buses: " << outputBuses.size() << std::endl;
+
         pluginInstance->prepareToPlay(sampleRate, samplesPerBlock);
         isPrepared = true;
+
+        std::cout << "[VSTPluginInstance] Plugin prepared successfully" << std::endl;
     }
 }
 
 void VSTPluginInstance::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages) {
     if (pluginInstance && isPrepared) {
-        pluginInstance->processBlock(buffer, midiMessages);
+        try {
+            // 验证缓冲区
+            if (buffer.getNumSamples() <= 0 || buffer.getNumChannels() <= 0) {
+                std::cout << "[VSTPluginInstance] Invalid buffer: samples=" << buffer.getNumSamples()
+                          << ", channels=" << buffer.getNumChannels() << std::endl;
+                return;
+            }
+
+            // 检查插件是否被暂停
+            if (pluginInstance->isSuspended()) {
+                std::cout << "[VSTPluginInstance] Plugin is suspended, clearing buffer" << std::endl;
+                buffer.clear();
+                return;
+            }
+
+            // 检查通道数匹配
+            auto layout = pluginInstance->getBusesLayout();
+            int expectedInputChannels = 0;
+            int expectedOutputChannels = 0;
+
+            for (const auto& bus : layout.inputBuses) {
+                expectedInputChannels += bus.size();
+            }
+            for (const auto& bus : layout.outputBuses) {
+                expectedOutputChannels += bus.size();
+            }
+
+            // 只在第一次或通道配置改变时输出日志
+            static int logCount = 0;
+            static int lastBufferChannels = -1;
+            static int lastExpectedInput = -1;
+
+            if (logCount++ % 1000 == 0 ||
+                lastBufferChannels != buffer.getNumChannels() ||
+                lastExpectedInput != expectedInputChannels) {
+
+                std::cout << "[VSTPluginInstance] Processing: buffer=" << buffer.getNumChannels()
+                          << " channels, expected input=" << expectedInputChannels
+                          << ", expected output=" << expectedOutputChannels << std::endl;
+
+                lastBufferChannels = buffer.getNumChannels();
+                lastExpectedInput = expectedInputChannels;
+            }
+
+            // 如果通道数不匹配，调整缓冲区
+            if (buffer.getNumChannels() != expectedInputChannels && expectedInputChannels > 0) {
+                if (logCount % 1000 == 1) {
+                    std::cout << "[VSTPluginInstance] Channel mismatch, using temporary buffer" << std::endl;
+                }
+
+                // 创建匹配插件期望的临时缓冲区
+                juce::AudioBuffer<float> tempBuffer(std::max(expectedInputChannels, expectedOutputChannels),
+                                                   buffer.getNumSamples());
+                tempBuffer.clear();
+
+                // 复制输入数据
+                int channelsToCopy = std::min(buffer.getNumChannels(), expectedInputChannels);
+                for (int ch = 0; ch < channelsToCopy; ++ch) {
+                    tempBuffer.copyFrom(ch, 0, buffer, ch, 0, buffer.getNumSamples());
+                }
+
+                // 处理临时缓冲区
+                pluginInstance->processBlock(tempBuffer, midiMessages);
+
+                // 复制输出数据回原缓冲区
+                int outputChannelsToCopy = std::min(buffer.getNumChannels(), expectedOutputChannels);
+                for (int ch = 0; ch < outputChannelsToCopy; ++ch) {
+                    buffer.copyFrom(ch, 0, tempBuffer, ch, 0, buffer.getNumSamples());
+                }
+            } else {
+                // 直接处理
+                pluginInstance->processBlock(buffer, midiMessages);
+            }
+
+        } catch (const std::exception& e) {
+            std::cout << "[VSTPluginInstance] Exception in processBlock: " << e.what() << std::endl;
+            // 清空缓冲区以避免噪音
+            buffer.clear();
+        } catch (...) {
+            std::cout << "[VSTPluginInstance] Unknown exception in processBlock" << std::endl;
+            buffer.clear();
+        }
     }
 }
 

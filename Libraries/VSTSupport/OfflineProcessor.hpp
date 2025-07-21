@@ -197,7 +197,8 @@ private:
     void onTaskProgress(const std::string& taskId, double progress);
     void onTaskCompleted(const std::string& taskId, bool success, const std::string& error);
     void onError(const std::string& error);
-    
+    void checkAllTasksCompleted();
+
     std::string generateTaskId();
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OfflineProcessor)

@@ -269,7 +269,10 @@ juce::ThreadPoolJob::JobStatus OfflineProcessor::ProcessingJob::runJob() {
         processor->stats.failedTasks++;
         processor->onTaskCompleted(task->id, false, task->errorMessage);
     }
-    
+
+    // 检查是否所有任务都完成了
+    processor->checkAllTasksCompleted();
+
     return juce::ThreadPoolJob::jobHasFinished;
 }
 
@@ -425,6 +428,31 @@ void OfflineProcessor::onTaskCompleted(const std::string& taskId, bool success, 
 void OfflineProcessor::onError(const std::string& error) {
     if (errorCallback) {
         errorCallback(error);
+    }
+}
+
+void OfflineProcessor::checkAllTasksCompleted() {
+    juce::ScopedLock sl(tasksLock);
+
+    // 检查是否所有任务都完成了（成功、失败或取消）
+    bool allCompleted = true;
+    for (const auto& task : tasks) {
+        if (task->status == ProcessingTask::Status::Pending ||
+            task->status == ProcessingTask::Status::Processing) {
+            allCompleted = false;
+            break;
+        }
+    }
+
+    // 如果所有任务都完成了，重置processing标志
+    if (allCompleted && processing) {
+        std::cout << "[OfflineProcessor] All tasks completed, resetting processing flag" << std::endl;
+        processing = false;
+
+        // 清理线程池
+        if (threadPool) {
+            threadPool->removeAllJobs(false, 1000);
+        }
     }
 }
 

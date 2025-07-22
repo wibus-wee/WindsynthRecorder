@@ -42,8 +42,14 @@ target_link_libraries(WindsynthVSTCore_Temp PRIVATE
 # 生成JUCE头文件
 juce_generate_juce_header(WindsynthVSTCore_Temp)
 
-# 创建静态库目标 - 只包含新的AudioGraph架构
+# 创建静态库目标
 add_library(WindsynthVSTCore STATIC
+    Libraries/VSTSupport/VSTPluginManager.cpp
+    Libraries/VSTSupport/AudioProcessingChain.cpp
+    Libraries/VSTSupport/RealtimeProcessor.cpp
+    Libraries/VSTSupport/OfflineProcessor.cpp
+    Libraries/Bridge/VSTBridge.mm
+
     # 新的AudioGraph架构
     Libraries/VSTSupport/AudioGraph/Core/GraphAudioProcessor.cpp
     Libraries/VSTSupport/AudioGraph/Plugins/ModernPluginLoader.cpp
@@ -51,9 +57,6 @@ add_library(WindsynthVSTCore STATIC
     Libraries/VSTSupport/AudioGraph/Management/GraphManager.cpp
     Libraries/VSTSupport/AudioGraph/Management/AudioIOManager.cpp
     Libraries/VSTSupport/AudioGraph/Management/PresetManager.cpp
-
-    # 新的桥接层
-    Libraries/Bridge/AudioGraphBridge.cpp
 )
 
 # 确保静态库在临时应用生成头文件后构建

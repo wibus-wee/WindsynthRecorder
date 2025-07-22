@@ -223,11 +223,6 @@ struct VSTProcessorView: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 80, alignment: .leading)
 
-            Text("文件")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(width: 60, alignment: .leading)
-
             Text("状态")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
@@ -489,12 +484,6 @@ struct ProfessionalPluginRowView: View {
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.tertiary)
                 .frame(width: 80, alignment: .leading)
-
-            // 文件路径（简化显示）
-            Text(plugin.filePath.split(separator: "/").last.map(String.init) ?? "")
-                .font(.system(size: 11))
-                .foregroundStyle(.tertiary)
-                .frame(width: 60, alignment: .leading)
 
             // 状态和操作 - 固定宽度避免布局挤压
             HStack(spacing: 4) {

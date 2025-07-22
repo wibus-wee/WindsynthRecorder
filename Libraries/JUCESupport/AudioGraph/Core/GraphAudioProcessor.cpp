@@ -127,10 +127,10 @@ void GraphAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             }
         }
 
-        static int debugCounter = 0;
-        if (++debugCounter % 1000 == 0 && maxLevel > 0.001f) { // 每1000个块输出一次，且有信号时
-            std::cout << "[GraphAudioProcessor] 音频文件信号电平: " << maxLevel << std::endl;
-        }
+        // static int debugCounter = 0;
+        // if (++debugCounter % 1000 == 0 && maxLevel > 0.001f) { // 每1000个块输出一次，且有信号时
+        //     // std::cout << "[GraphAudioProcessor] 音频文件信号电平: " << maxLevel << std::endl;
+        // }
 
         // 将传输音频添加到主缓冲区
         for (int channel = 0; channel < buffer.getNumChannels(); ++channel) {

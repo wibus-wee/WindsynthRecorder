@@ -32,7 +32,7 @@ class PresetManager;
  * - 内置并行处理能力
  * - 高效的内存管理
  */
-class GraphAudioProcessor : public juce::AudioProcessor {
+class GraphAudioProcessor : public juce::AudioProcessor, public juce::AudioIODeviceCallback {
 public:
     //==============================================================================
     // 构造函数和析构函数
@@ -61,6 +61,29 @@ public:
     
     void reset() override;
     void setNonRealtime(bool isNonRealtime) noexcept override;
+
+    //==============================================================================
+    // AudioIODeviceCallback 接口实现
+    //==============================================================================
+
+    void audioDeviceIOCallbackWithContext(const float* const* inputChannelData,
+                                         int numInputChannels,
+                                         float* const* outputChannelData,
+                                         int numOutputChannels,
+                                         int numSamples,
+                                         const juce::AudioIODeviceCallbackContext& context) override;
+
+    void audioDeviceAboutToStart(juce::AudioIODevice* device) override;
+    void audioDeviceStopped() override;
+
+    //==============================================================================
+    // 音频文件播放支持
+    //==============================================================================
+
+    /**
+     * 设置音频传输源（用于音频文件播放）
+     */
+    void setTransportSource(juce::AudioTransportSource* source);
     
     double getTailLengthSeconds() const override;
     bool acceptsMidi() const override;
@@ -267,6 +290,10 @@ private:
     // 错误信息
     mutable std::mutex errorMutex;
     std::string lastError;
+
+    // 音频文件播放
+    juce::AudioTransportSource* transportSource = nullptr;
+    juce::AudioBuffer<float> transportBuffer;
     
     //==============================================================================
     // 内部方法
@@ -276,6 +303,21 @@ private:
      * 初始化I/O节点
      */
     void initializeIONodes();
+
+    /**
+     * 更新I/O节点的父图引用
+     */
+    void updateIONodesParentGraph();
+
+    /**
+     * 创建默认的直通连接（输入到输出）
+     */
+    void createDefaultPassthroughConnections();
+
+    /**
+     * 更新音频图的通道配置
+     */
+    void updateGraphChannelConfiguration(const GraphConfig& config);
     
     /**
      * 更新性能统计

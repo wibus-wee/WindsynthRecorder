@@ -37,8 +37,10 @@ AudioIOManager::AudioIOManager(GraphAudioProcessor& graphProcessor)
 
 AudioIOManager::~AudioIOManager() {
     std::cout << "[AudioIOManager] 析构音频I/O管理器" << std::endl;
-    
+
     if (deviceManager) {
+        // 移除音频回调
+        deviceManager->removeAudioCallback(&graphProcessor);
         deviceManager->closeAudioDevice();
     }
 }
@@ -619,6 +621,10 @@ void AudioIOManager::initializeDeviceManager() {
     deviceManager = std::make_unique<juce::AudioDeviceManager>();
     // deviceManager->initialiseWithDefaultDevices(2, 2);
     deviceManager->initialiseWithDefaultDevices(0, 2); // 0 input channels
+
+    // 关键：连接GraphAudioProcessor到音频设备管理器
+    deviceManager->addAudioCallback(&graphProcessor);
+    std::cout << "[AudioIOManager] GraphAudioProcessor已连接到音频设备" << std::endl;
 
     // 设置默认设备信息
     auto* currentAudioDevice = deviceManager->getCurrentAudioDevice();

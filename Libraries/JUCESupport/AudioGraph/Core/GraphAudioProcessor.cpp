@@ -22,13 +22,16 @@ GraphAudioProcessor::GraphAudioProcessor()
                     .withOutput("Output", juce::AudioChannelSet::stereo(), true))
 {
     std::cout << "[GraphAudioProcessor] 构造函数：初始化音频图处理器" << std::endl;
-    
+
     // 预分配性能统计历史记录空间
     processingTimeHistory.reserve(Constants::PERFORMANCE_STATS_HISTORY_SIZE);
-    
+
     // 初始化I/O节点
     initializeIONodes();
-    
+
+    // 设置初始的I/O节点父图引用
+    updateIONodesParentGraph();
+
     std::cout << "[GraphAudioProcessor] 构造完成" << std::endl;
 }
 
@@ -60,39 +63,86 @@ void GraphAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock) 
     
     // 准备内部音频图
     audioGraph.prepareToPlay(sampleRate, samplesPerBlock);
-    
+
+    // 准备传输源（如果存在）
+    if (transportSource) {
+        transportSource->prepareToPlay(samplesPerBlock, sampleRate);
+    }
+
     // 重置性能统计
     resetPerformanceStats();
-    
+
     graphReady.store(true);
     isConfigured.store(true);
-    
+
     notifyStateChange("音频图已准备就绪");
     std::cout << "[GraphAudioProcessor] prepareToPlay 完成" << std::endl;
 }
 
 void GraphAudioProcessor::releaseResources() {
     std::cout << "[GraphAudioProcessor] releaseResources" << std::endl;
-    
+
     graphReady.store(false);
     audioGraph.releaseResources();
-    
+
+    // 释放传输源资源
+    if (transportSource) {
+        transportSource->releaseResources();
+    }
+
     notifyStateChange("音频图资源已释放");
 }
 
-void GraphAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
+void GraphAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                                      juce::MidiBuffer& midiMessages) {
     if (!isGraphReady()) {
         buffer.clear();
         return;
     }
-    
+
     // 记录处理开始时间
     auto startTime = juce::Time::getHighResolutionTicks();
-    
+
+    // 如果有音频文件播放，先处理transportSource
+    if (transportSource != nullptr) {
+        // 确保缓冲区大小匹配
+        if (transportBuffer.getNumChannels() != buffer.getNumChannels() ||
+            transportBuffer.getNumSamples() != buffer.getNumSamples()) {
+            transportBuffer.setSize(buffer.getNumChannels(), buffer.getNumSamples());
+        }
+
+        // 清空传输缓冲区
+        transportBuffer.clear();
+
+        // 从transportSource获取音频数据
+        juce::AudioSourceChannelInfo channelInfo(&transportBuffer, 0, buffer.getNumSamples());
+        transportSource->getNextAudioBlock(channelInfo);
+
+        // 检查是否有音频数据
+        float maxLevel = 0.0f;
+        for (int channel = 0; channel < transportBuffer.getNumChannels(); ++channel) {
+            auto* channelData = transportBuffer.getReadPointer(channel);
+            for (int sample = 0; sample < transportBuffer.getNumSamples(); ++sample) {
+                maxLevel = std::max(maxLevel, std::abs(channelData[sample]));
+            }
+        }
+
+        static int debugCounter = 0;
+        if (++debugCounter % 1000 == 0 && maxLevel > 0.001f) { // 每1000个块输出一次，且有信号时
+            std::cout << "[GraphAudioProcessor] 音频文件信号电平: " << maxLevel << std::endl;
+        }
+
+        // 将传输音频添加到主缓冲区
+        for (int channel = 0; channel < buffer.getNumChannels(); ++channel) {
+            if (channel < transportBuffer.getNumChannels()) {
+                buffer.addFrom(channel, 0, transportBuffer, channel, 0, buffer.getNumSamples());
+            }
+        }
+    }
+
     // 处理音频图
     audioGraph.processBlock(buffer, midiMessages);
-    
+
     // 计算处理时间并更新统计
     auto endTime = juce::Time::getHighResolutionTicks();
     double processingTimeMs = juce::Time::highResolutionTicksToSeconds(endTime - startTime) * 1000.0;
@@ -125,6 +175,66 @@ bool GraphAudioProcessor::supportsDoublePrecisionProcessing() const {
 void GraphAudioProcessor::reset() {
     audioGraph.reset();
     resetPerformanceStats();
+}
+
+void GraphAudioProcessor::setTransportSource(juce::AudioTransportSource* source) {
+    std::cout << "[GraphAudioProcessor] 设置传输源: " << (source ? "有效" : "空") << std::endl;
+    transportSource = source;
+
+    if (source && isConfigured.load()) {
+        // 如果已经配置过，需要准备传输源
+        source->prepareToPlay(currentConfig.samplesPerBlock, currentConfig.sampleRate);
+    }
+}
+
+//==============================================================================
+// AudioIODeviceCallback 接口实现
+//==============================================================================
+
+void GraphAudioProcessor::audioDeviceIOCallbackWithContext(const float* const* inputChannelData,
+                                                          int numInputChannels,
+                                                          float* const* outputChannelData,
+                                                          int numOutputChannels,
+                                                          int numSamples,
+                                                          const juce::AudioIODeviceCallbackContext& context) {
+    // 创建音频缓冲区
+    juce::AudioBuffer<float> buffer(outputChannelData, numOutputChannels, numSamples);
+    juce::MidiBuffer midiBuffer;
+
+    // 清空输出缓冲区
+    buffer.clear();
+
+    // 如果有输入，复制到输出缓冲区
+    if (inputChannelData != nullptr && numInputChannels > 0) {
+        for (int channel = 0; channel < std::min(numInputChannels, numOutputChannels); ++channel) {
+            if (inputChannelData[channel] != nullptr) {
+                buffer.copyFrom(channel, 0, inputChannelData[channel], numSamples);
+            }
+        }
+    }
+
+    // 处理音频
+    processBlock(buffer, midiBuffer);
+}
+
+void GraphAudioProcessor::audioDeviceAboutToStart(juce::AudioIODevice* device) {
+    std::cout << "[GraphAudioProcessor] 音频设备即将启动" << std::endl;
+
+    if (device) {
+        double sampleRate = device->getCurrentSampleRate();
+        int bufferSize = device->getCurrentBufferSizeSamples();
+
+        std::cout << "[GraphAudioProcessor] 设备参数: " << sampleRate << "Hz, " << bufferSize << " samples" << std::endl;
+
+        // 不要在这里调用prepareToPlay，因为设备管理器已经在准备过程中
+        // prepareToPlay应该由AudioIOManager在适当的时候调用
+    }
+}
+
+void GraphAudioProcessor::audioDeviceStopped() {
+    std::cout << "[GraphAudioProcessor] 音频设备已停止" << std::endl;
+    // 不要在这里调用releaseResources，因为可能导致资源管理冲突
+    // releaseResources应该由AudioIOManager在适当的时候调用
 }
 
 void GraphAudioProcessor::setNonRealtime(bool isNonRealtime) noexcept {
@@ -240,20 +350,26 @@ void GraphAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
 
 void GraphAudioProcessor::configure(const GraphConfig& config) {
     std::cout << "[GraphAudioProcessor] 配置音频图：" << config.sampleRate << "Hz, "
-              << config.samplesPerBlock << " samples, " << config.numInputChannels 
+              << config.samplesPerBlock << " samples, " << config.numInputChannels
               << " inputs, " << config.numOutputChannels << " outputs" << std::endl;
-    
+
     std::lock_guard<std::mutex> lock(configMutex);
-    
+
     bool needsReinitialization = (currentConfig != config);
     currentConfig = config;
-    
+
+    // 更新AudioProcessorGraph的通道配置
+    updateGraphChannelConfiguration(config);
+
     if (needsReinitialization && isConfigured.load()) {
         // 如果已经配置过，需要重新初始化
         releaseResources();
         prepareToPlay(config.sampleRate, config.samplesPerBlock);
     }
-    
+
+    // 在配置更新后创建默认连接
+    createDefaultPassthroughConnections();
+
     notifyStateChange("音频图配置已更新");
 }
 
@@ -263,28 +379,185 @@ void GraphAudioProcessor::configure(const GraphConfig& config) {
 
 void GraphAudioProcessor::initializeIONodes() {
     std::cout << "[GraphAudioProcessor] 初始化I/O节点" << std::endl;
-    
-    // 创建音频输入节点
+
+    // 创建音频输入节点（不立即设置父图）
     auto audioInputProcessor = std::make_unique<juce::AudioProcessorGraph::AudioGraphIOProcessor>(
         juce::AudioProcessorGraph::AudioGraphIOProcessor::audioInputNode);
     audioInputNodeID = audioGraph.addNode(std::move(audioInputProcessor))->nodeID;
-    
-    // 创建音频输出节点
+
+    // 创建音频输出节点（不立即设置父图）
     auto audioOutputProcessor = std::make_unique<juce::AudioProcessorGraph::AudioGraphIOProcessor>(
         juce::AudioProcessorGraph::AudioGraphIOProcessor::audioOutputNode);
     audioOutputNodeID = audioGraph.addNode(std::move(audioOutputProcessor))->nodeID;
-    
+
     // 创建MIDI输入节点
     auto midiInputProcessor = std::make_unique<juce::AudioProcessorGraph::AudioGraphIOProcessor>(
         juce::AudioProcessorGraph::AudioGraphIOProcessor::midiInputNode);
     midiInputNodeID = audioGraph.addNode(std::move(midiInputProcessor))->nodeID;
-    
+
     // 创建MIDI输出节点
     auto midiOutputProcessor = std::make_unique<juce::AudioProcessorGraph::AudioGraphIOProcessor>(
         juce::AudioProcessorGraph::AudioGraphIOProcessor::midiOutputNode);
     midiOutputNodeID = audioGraph.addNode(std::move(midiOutputProcessor))->nodeID;
-    
+
     std::cout << "[GraphAudioProcessor] I/O节点初始化完成" << std::endl;
+}
+
+void GraphAudioProcessor::updateIONodesParentGraph() {
+    std::cout << "[GraphAudioProcessor] 更新I/O节点父图引用" << std::endl;
+
+    // 更新I/O节点的父图引用，这会触发它们重新配置通道数
+    auto* inputNode = audioGraph.getNodeForId(audioInputNodeID);
+    auto* outputNode = audioGraph.getNodeForId(audioOutputNodeID);
+    auto* midiInputNode = audioGraph.getNodeForId(midiInputNodeID);
+    auto* midiOutputNode = audioGraph.getNodeForId(midiOutputNodeID);
+
+    if (inputNode && inputNode->getProcessor()) {
+        if (auto* ioProcessor = dynamic_cast<juce::AudioProcessorGraph::AudioGraphIOProcessor*>(inputNode->getProcessor())) {
+            ioProcessor->setParentGraph(&audioGraph);
+        }
+    }
+
+    if (outputNode && outputNode->getProcessor()) {
+        if (auto* ioProcessor = dynamic_cast<juce::AudioProcessorGraph::AudioGraphIOProcessor*>(outputNode->getProcessor())) {
+            ioProcessor->setParentGraph(&audioGraph);
+        }
+    }
+
+    if (midiInputNode && midiInputNode->getProcessor()) {
+        if (auto* ioProcessor = dynamic_cast<juce::AudioProcessorGraph::AudioGraphIOProcessor*>(midiInputNode->getProcessor())) {
+            ioProcessor->setParentGraph(&audioGraph);
+        }
+    }
+
+    if (midiOutputNode && midiOutputNode->getProcessor()) {
+        if (auto* ioProcessor = dynamic_cast<juce::AudioProcessorGraph::AudioGraphIOProcessor*>(midiOutputNode->getProcessor())) {
+            ioProcessor->setParentGraph(&audioGraph);
+        }
+    }
+
+    std::cout << "[GraphAudioProcessor] I/O节点父图引用更新完成" << std::endl;
+}
+
+void GraphAudioProcessor::createDefaultPassthroughConnections() {
+    std::cout << "[GraphAudioProcessor] 创建默认直通连接" << std::endl;
+    std::cout << "[GraphAudioProcessor] 音频输入节点ID: " << audioInputNodeID.uid << std::endl;
+    std::cout << "[GraphAudioProcessor] 音频输出节点ID: " << audioOutputNodeID.uid << std::endl;
+
+    // 检查I/O节点的通道配置
+    auto* inputNode = audioGraph.getNodeForId(audioInputNodeID);
+    auto* outputNode = audioGraph.getNodeForId(audioOutputNodeID);
+
+    if (inputNode && inputNode->getProcessor()) {
+        auto* inputProcessor = inputNode->getProcessor();
+        std::cout << "[GraphAudioProcessor] 输入节点通道数: 输入=" << inputProcessor->getTotalNumInputChannels()
+                  << ", 输出=" << inputProcessor->getTotalNumOutputChannels() << std::endl;
+    }
+
+    if (outputNode && outputNode->getProcessor()) {
+        auto* outputProcessor = outputNode->getProcessor();
+        std::cout << "[GraphAudioProcessor] 输出节点通道数: 输入=" << outputProcessor->getTotalNumInputChannels()
+                  << ", 输出=" << outputProcessor->getTotalNumOutputChannels() << std::endl;
+    }
+
+    // 首先检查 audioGraph 的总线配置
+    std::cout << "[GraphAudioProcessor] audioGraph 总线配置 - 输入通道: " << audioGraph.getTotalNumInputChannels()
+              << ", 输出通道: " << audioGraph.getTotalNumOutputChannels() << std::endl;
+
+    // 创建立体声直通连接（左声道和右声道）
+    Connection leftConnection = makeAudioConnection(audioInputNodeID, 0, audioOutputNodeID, 0);
+    Connection rightConnection = makeAudioConnection(audioInputNodeID, 1, audioOutputNodeID, 1);
+
+    std::cout << "[GraphAudioProcessor] 检查左声道连接合法性..." << std::endl;
+    std::cout << "[GraphAudioProcessor] 左声道连接: 输入节点" << audioInputNodeID.uid << "[通道0] -> 输出节点" << audioOutputNodeID.uid << "[通道0]" << std::endl;
+
+    // 详细检查连接合法性的各个条件
+    auto* sourceNode = audioGraph.getNodeForId(audioInputNodeID);
+    auto* destNode = audioGraph.getNodeForId(audioOutputNodeID);
+
+    if (!sourceNode) {
+        std::cout << "[GraphAudioProcessor] 错误: 源节点不存在" << std::endl;
+    } else {
+        auto* sourceProcessor = sourceNode->getProcessor();
+        std::cout << "[GraphAudioProcessor] 源节点输出通道数: " << sourceProcessor->getTotalNumOutputChannels() << std::endl;
+    }
+
+    if (!destNode) {
+        std::cout << "[GraphAudioProcessor] 错误: 目标节点不存在" << std::endl;
+    } else {
+        auto* destProcessor = destNode->getProcessor();
+        std::cout << "[GraphAudioProcessor] 目标节点输入通道数: " << destProcessor->getTotalNumInputChannels() << std::endl;
+    }
+
+    if (audioGraph.isConnectionLegal(leftConnection)) {
+        bool leftSuccess = audioGraph.addConnection(leftConnection);
+        std::cout << "[GraphAudioProcessor] 左声道直通连接: " << (leftSuccess ? "成功" : "失败") << std::endl;
+    } else {
+        std::cout << "[GraphAudioProcessor] 左声道连接不合法" << std::endl;
+    }
+
+    std::cout << "[GraphAudioProcessor] 检查右声道连接合法性..." << std::endl;
+    if (audioGraph.isConnectionLegal(rightConnection)) {
+        bool rightSuccess = audioGraph.addConnection(rightConnection);
+        std::cout << "[GraphAudioProcessor] 右声道直通连接: " << (rightSuccess ? "成功" : "失败") << std::endl;
+    } else {
+        std::cout << "[GraphAudioProcessor] 右声道连接不合法" << std::endl;
+    }
+
+    // 创建MIDI直通连接
+    Connection midiConnection = makeMidiConnection(midiInputNodeID, midiOutputNodeID);
+    std::cout << "[GraphAudioProcessor] 检查MIDI连接合法性..." << std::endl;
+    if (audioGraph.isConnectionLegal(midiConnection)) {
+        bool midiSuccess = audioGraph.addConnection(midiConnection);
+        std::cout << "[GraphAudioProcessor] MIDI直通连接: " << (midiSuccess ? "成功" : "失败") << std::endl;
+    } else {
+        std::cout << "[GraphAudioProcessor] MIDI连接不合法" << std::endl;
+    }
+
+    // 输出当前连接状态
+    auto connections = audioGraph.getConnections();
+    std::cout << "[GraphAudioProcessor] 当前连接数量: " << connections.size() << std::endl;
+
+    std::cout << "[GraphAudioProcessor] 默认直通连接创建完成" << std::endl;
+}
+
+void GraphAudioProcessor::updateGraphChannelConfiguration(const GraphConfig& config) {
+    std::cout << "[GraphAudioProcessor] 更新音频图通道配置" << std::endl;
+
+    // 设置AudioProcessorGraph的通道配置
+    // 这会影响AudioGraphIOProcessor的通道数
+    juce::AudioChannelSet inputChannelSet = juce::AudioChannelSet::canonicalChannelSet(config.numInputChannels);
+    juce::AudioChannelSet outputChannelSet = juce::AudioChannelSet::canonicalChannelSet(config.numOutputChannels);
+
+    // 更新 GraphAudioProcessor 的总线配置
+    if (getBusCount(true) > 0) {
+        setChannelLayoutOfBus(true, 0, inputChannelSet);
+    }
+    if (getBusCount(false) > 0) {
+        setChannelLayoutOfBus(false, 0, outputChannelSet);
+    }
+
+    // 强制更新缓存的通道数
+    setBusesLayout(getBusesLayout());
+
+    std::cout << "[GraphAudioProcessor] 当前总线配置 - 输入通道: " << getTotalNumInputChannels()
+              << ", 输出通道: " << getTotalNumOutputChannels() << std::endl;
+
+    // 关键：为内部的 audioGraph 设置相同的总线配置
+    juce::AudioProcessor::BusesLayout graphLayout;
+    graphLayout.inputBuses.add(inputChannelSet);
+    graphLayout.outputBuses.add(outputChannelSet);
+
+    std::cout << "[GraphAudioProcessor] 设置 audioGraph 总线配置..." << std::endl;
+    bool layoutSuccess = audioGraph.setBusesLayout(graphLayout);
+    std::cout << "[GraphAudioProcessor] audioGraph 总线配置设置" << (layoutSuccess ? "成功" : "失败") << std::endl;
+    std::cout << "[GraphAudioProcessor] audioGraph 总线配置 - 输入通道: " << audioGraph.getTotalNumInputChannels()
+              << ", 输出通道: " << audioGraph.getTotalNumOutputChannels() << std::endl;
+
+    // 更新I/O节点的父图引用，这会触发它们重新配置通道数
+    updateIONodesParentGraph();
+
+    std::cout << "[GraphAudioProcessor] 音频图通道配置更新完成" << std::endl;
 }
 
 void GraphAudioProcessor::updatePerformanceStats(double processingTimeMs) {

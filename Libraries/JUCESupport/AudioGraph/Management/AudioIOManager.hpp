@@ -142,6 +142,11 @@ public:
      * @return 当前设备信息
      */
     AudioDeviceInfo getCurrentDevice() const;
+
+    /**
+     * 获取设备管理器（用于直接音频播放）
+     */
+    juce::AudioDeviceManager* getDeviceManager() const { return deviceManager.get(); }
     
     /**
      * 检查设备是否可用

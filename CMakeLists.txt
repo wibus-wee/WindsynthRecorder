@@ -57,6 +57,10 @@ add_library(WindsynthVSTCore STATIC
     Libraries/JUCESupport/AudioGraph/Management/GraphManager.cpp
     Libraries/JUCESupport/AudioGraph/Management/AudioIOManager.cpp
     Libraries/JUCESupport/AudioGraph/Management/PresetManager.cpp
+
+    # 新的引擎门面和桥接层（阶段一）
+    Libraries/JUCESupport/WindsynthEngineFacade.cpp
+    Libraries/JUCESupport/AudioGraphBridge.mm
 )
 
 # 确保静态库在临时应用生成头文件后构建
@@ -67,6 +71,7 @@ target_include_directories(WindsynthVSTCore PUBLIC
     Libraries/VSTSupport
     Libraries/Bridge
     Libraries/JUCESupport/AudioGraph
+    Libraries/JUCESupport
     $<TARGET_PROPERTY:WindsynthVSTCore_Temp,JUCE_GENERATED_SOURCES_DIRECTORY>
 )
 
@@ -135,6 +140,12 @@ if(APPLE)
 
     install(DIRECTORY Libraries/Bridge/
         DESTINATION include/Bridge
+        FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
+    )
+
+    # 安装新的引擎门面头文件
+    install(DIRECTORY Libraries/JUCESupport/
+        DESTINATION include/JUCESupport
         FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
     )
 endif()

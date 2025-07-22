@@ -101,4 +101,11 @@ void realtimeProcessor_setProcessingChain(RealtimeProcessorHandle handle, AudioP
 }
 #endif
 
+// ============================================================================
+// 新的AudioGraphBridge接口（阶段二）
+// ============================================================================
+
+// 导入新的AudioGraphBridge C接口
+#include "AudioGraphBridge.h"
+
 #endif /* WindsynthRecorder_Bridging_Header_h */

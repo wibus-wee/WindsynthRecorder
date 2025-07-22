@@ -51,12 +51,12 @@ add_library(WindsynthVSTCore STATIC
     Libraries/Bridge/VSTBridge.mm
 
     # 新的AudioGraph架构
-    Libraries/VSTSupport/AudioGraph/Core/GraphAudioProcessor.cpp
-    Libraries/VSTSupport/AudioGraph/Plugins/ModernPluginLoader.cpp
-    Libraries/VSTSupport/AudioGraph/Plugins/PluginManager.cpp
-    Libraries/VSTSupport/AudioGraph/Management/GraphManager.cpp
-    Libraries/VSTSupport/AudioGraph/Management/AudioIOManager.cpp
-    Libraries/VSTSupport/AudioGraph/Management/PresetManager.cpp
+    Libraries/JUCESupport/AudioGraph/Core/GraphAudioProcessor.cpp
+    Libraries/JUCESupport/AudioGraph/Plugins/ModernPluginLoader.cpp
+    Libraries/JUCESupport/AudioGraph/Plugins/PluginManager.cpp
+    Libraries/JUCESupport/AudioGraph/Management/GraphManager.cpp
+    Libraries/JUCESupport/AudioGraph/Management/AudioIOManager.cpp
+    Libraries/JUCESupport/AudioGraph/Management/PresetManager.cpp
 )
 
 # 确保静态库在临时应用生成头文件后构建
@@ -66,7 +66,7 @@ add_dependencies(WindsynthVSTCore WindsynthVSTCore_Temp)
 target_include_directories(WindsynthVSTCore PUBLIC
     Libraries/VSTSupport
     Libraries/Bridge
-    Libraries/VSTSupport/AudioGraph
+    Libraries/JUCESupport/AudioGraph
     $<TARGET_PROPERTY:WindsynthVSTCore_Temp,JUCE_GENERATED_SOURCES_DIRECTORY>
 )
 
@@ -104,7 +104,6 @@ if(APPLE)
         "-framework CoreMIDI"
         "-framework Foundation"
         "-framework Accelerate"
-        "-lc++"  # 链接 C++ 标准库
     )
 endif()
 
@@ -149,7 +148,7 @@ if(BUILD_TESTS)
     # 创建测试可执行文件
     add_executable(AudioGraphTests
         test_runner_main.cpp
-        Libraries/VSTSupport/AudioGraph/Tests/AudioGraphTests.cpp
+        Libraries/JUCESupport/AudioGraph/Tests/AudioGraphTests.cpp
     )
 
     # 链接到我们的静态库
@@ -157,8 +156,7 @@ if(BUILD_TESTS)
 
     # 设置头文件搜索路径
     target_include_directories(AudioGraphTests PRIVATE
-        Libraries/VSTSupport
-        Libraries/VSTSupport/AudioGraph
+        Libraries/JUCESupport/AudioGraph
         $<TARGET_PROPERTY:WindsynthVSTCore_Temp,JUCE_GENERATED_SOURCES_DIRECTORY>
     )
 

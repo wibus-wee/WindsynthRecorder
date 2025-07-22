@@ -7,7 +7,7 @@
 //
 
 #include <JuceHeader.h>
-#include "Libraries/VSTSupport/AudioGraph/Tests/AudioGraphTests.hpp"
+#include "Libraries/JUCESupport/AudioGraph/Tests/AudioGraphTests.hpp"
 #include <iostream>
 
 using namespace WindsynthVST::AudioGraph::Tests;

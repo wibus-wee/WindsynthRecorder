@@ -11,7 +11,7 @@ import SwiftUI
 /// 插件参数控制界面
 struct PluginParameterView: View {
     let pluginName: String
-    let vstManager: VSTManagerExample
+    let audioGraphService: AudioGraphService
     
     @Environment(\.dismiss) private var dismiss
     @State private var parameters: [PluginParameter] = []
@@ -118,7 +118,7 @@ struct PluginParameterView: View {
                 ForEach(parameters, id: \.id) { parameter in
                     ParameterControlView(
                         parameter: parameter,
-                        vstManager: vstManager,
+                        audioGraphService: audioGraphService,
                         pluginName: pluginName
                     )
                 }
@@ -214,7 +214,7 @@ struct PluginParameter {
 /// 单个参数控制视图
 struct ParameterControlView: View {
     @State var parameter: PluginParameter
-    let vstManager: VSTManagerExample
+    let audioGraphService: AudioGraphService
     let pluginName: String
     
     var body: some View {
@@ -263,8 +263,8 @@ struct ParameterControlView: View {
     }
     
     private func updatePluginParameter() {
-        // 这里应该调用VST管理器更新插件参数
-        // vstManager.setPluginParameter(pluginName: pluginName, parameterId: parameter.id, value: parameter.value)
+        // TODO: 实现AudioGraphService的参数更新功能
+        // audioGraphService.setNodeParameter(nodeID: nodeID, parameterIndex: parameter.id, value: parameter.value)
         print("更新插件参数: \(pluginName) - \(parameter.name) = \(parameter.value)")
     }
     
@@ -277,6 +277,6 @@ struct ParameterControlView: View {
 #Preview {
     PluginParameterView(
         pluginName: "示例插件",
-        vstManager: VSTManagerExample.shared
+        audioGraphService: AudioGraphService.shared
     )
 }

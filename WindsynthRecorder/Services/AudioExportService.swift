@@ -314,13 +314,13 @@ class AudioExportService: NSObject, ObservableObject {
     // MARK: - Private Properties
 
     private var offlineProcessor: UnsafeMutablePointer<OfflineProcessorHandle>?
-    private var vstManager: VSTManagerExample
+    private var audioGraphService: AudioGraphService
     private let logger = AudioProcessingLogger.shared
     
     // MARK: - Initialization
     
     override init() {
-        self.vstManager = VSTManagerExample.shared
+        self.audioGraphService = AudioGraphService.shared
         super.init()
         setupOfflineProcessor()
     }
@@ -417,8 +417,9 @@ class AudioExportService: NSObject, ObservableObject {
             outputBitDepth: Int32(config.outputBitDepth)
         )
         
-        // 获取VST处理链
-        let processingChain = vstManager.getProcessingChain()
+        // TODO: 实现AudioGraphService的处理链获取功能
+        // let processingChain = audioGraphService.getProcessingChain()
+        let processingChain: UnsafeMutableRawPointer? = nil // 临时解决方案
         
         // 调用C接口添加任务
         // 记录路径信息用于调试
@@ -650,7 +651,7 @@ func offlineProcessor_addTask(_ handle: UnsafeMutablePointer<OfflineProcessorHan
                             _ inputFilePath: UnsafePointer<CChar>,
                             _ outputFilePath: UnsafePointer<CChar>,
                             _ config: UnsafePointer<OfflineProcessingConfig_C>,
-                            _ processingChain: AudioProcessingChainHandle?) -> UnsafePointer<CChar>?
+                            _ processingChain: UnsafeMutableRawPointer?) -> UnsafePointer<CChar>?
 
 @_silgen_name("offlineProcessor_removeTask")
 func offlineProcessor_removeTask(_ handle: UnsafeMutablePointer<OfflineProcessorHandle>, _ taskId: UnsafePointer<CChar>) -> Bool

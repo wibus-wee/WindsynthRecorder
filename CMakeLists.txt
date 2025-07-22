@@ -44,12 +44,6 @@ juce_generate_juce_header(WindsynthVSTCore_Temp)
 
 # 创建静态库目标
 add_library(WindsynthVSTCore STATIC
-    Libraries/VSTSupport/VSTPluginManager.cpp
-    Libraries/VSTSupport/AudioProcessingChain.cpp
-    Libraries/VSTSupport/RealtimeProcessor.cpp
-    Libraries/VSTSupport/OfflineProcessor.cpp
-    Libraries/Bridge/VSTBridge.mm
-
     # 新的AudioGraph架构
     Libraries/JUCESupport/AudioGraph/Core/GraphAudioProcessor.cpp
     Libraries/JUCESupport/AudioGraph/Plugins/ModernPluginLoader.cpp
@@ -58,7 +52,7 @@ add_library(WindsynthVSTCore STATIC
     Libraries/JUCESupport/AudioGraph/Management/AudioIOManager.cpp
     Libraries/JUCESupport/AudioGraph/Management/PresetManager.cpp
 
-    # 新的引擎门面和桥接层（阶段一）
+    # 新的引擎门面和桥接层
     Libraries/JUCESupport/WindsynthEngineFacade.cpp
     Libraries/JUCESupport/AudioGraphBridge.mm
 )
@@ -68,8 +62,6 @@ add_dependencies(WindsynthVSTCore WindsynthVSTCore_Temp)
 
 # 设置头文件搜索路径
 target_include_directories(WindsynthVSTCore PUBLIC
-    Libraries/VSTSupport
-    Libraries/Bridge
     Libraries/JUCESupport/AudioGraph
     Libraries/JUCESupport
     $<TARGET_PROPERTY:WindsynthVSTCore_Temp,JUCE_GENERATED_SOURCES_DIRECTORY>
@@ -133,17 +125,6 @@ if(APPLE)
     )
 
     # 安装头文件
-    install(DIRECTORY Libraries/VSTSupport/
-        DESTINATION include/VSTSupport
-        FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
-    )
-
-    install(DIRECTORY Libraries/Bridge/
-        DESTINATION include/Bridge
-        FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
-    )
-
-    # 安装新的引擎门面头文件
     install(DIRECTORY Libraries/JUCESupport/
         DESTINATION include/JUCESupport
         FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"

@@ -11,7 +11,7 @@ import SwiftUI
 struct ProfessionalPluginSlot: View {
     let pluginName: String
     let identifier: String
-    let vstManager: VSTManagerExample
+    let audioGraphService: AudioGraphService
     let onParametersPressed: () -> Void
 
     @State private var isEnabled: Bool = true
@@ -43,7 +43,8 @@ struct ProfessionalPluginSlot: View {
                 // 开关按钮
                 Button(action: {
                     isEnabled.toggle()
-                    _ = vstManager.setPluginEnabled(identifier: identifier, enabled: isEnabled)
+                    // TODO: 实现AudioGraphService的插件启用/禁用功能
+                    // _ = audioGraphService.setNodeEnabled(nodeID: nodeID, enabled: isEnabled)
                 }) {
                     Image(systemName: isEnabled ? "power.circle.fill" : "power.circle")
                         .font(.caption)
@@ -62,7 +63,8 @@ struct ProfessionalPluginSlot: View {
                 .help(isEnabled ? "禁用插件" : "启用插件")
 
                 Button(action: {
-                    vstManager.showPluginEditor(identifier: identifier)
+                    // TODO: 实现AudioGraphService的插件编辑器显示功能
+                    // audioGraphService.showPluginEditor(nodeID: nodeID)
                 }) {
                     Image(systemName: "slider.horizontal.3")
                         .font(.caption)
@@ -98,7 +100,8 @@ struct ProfessionalPluginSlot: View {
                 .help("插件参数设置")
                 
                 Button(action: {
-                    _ = vstManager.unloadPlugin(identifier: identifier)
+                    // TODO: 实现AudioGraphService的插件卸载功能
+                    // _ = audioGraphService.removeNode(nodeID: nodeID)
                 }) {
                     Image(systemName: "xmark")
                         .font(.caption)
@@ -129,7 +132,8 @@ struct ProfessionalPluginSlot: View {
         .animation(.easeInOut(duration: 0.2), value: isEnabled)
         .onAppear {
             // 初始化插件状态
-            isEnabled = vstManager.isPluginEnabled(identifier: identifier)
+            // TODO: 从AudioGraphService获取插件状态
+            // isEnabled = audioGraphService.isNodeEnabled(nodeID: nodeID)
         }
     }
 }

@@ -18,7 +18,7 @@ struct AudioProcessorWindowView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button("关闭") {
-                        windowManager.closeAudioProcessor()
+                        windowManager.destroyWindow(withId: WindowManager.WindowConfig.audioProcessor.id)
                         dismiss()
                     }
                     .keyboardShortcut("w", modifiers: .command)
@@ -46,7 +46,7 @@ struct AudioProcessorWindowView: View {
             }
             .onChange(of: isPresented) { newValue in
                 if !newValue {
-                    windowManager.closeAudioProcessor()
+                    windowManager.destroyWindow(withId: WindowManager.WindowConfig.audioProcessor.id)
                     dismiss()
                 }
             }

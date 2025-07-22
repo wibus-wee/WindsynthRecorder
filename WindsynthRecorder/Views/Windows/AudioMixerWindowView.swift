@@ -17,7 +17,7 @@ struct AudioMixerWindowView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button("关闭") {
-                        windowManager.closeAudioMixer()
+                        windowManager.destroyWindow(withId: WindowManager.WindowConfig.audioMixer.id)
                         dismiss()
                     }
                     .keyboardShortcut("w", modifiers: .command)

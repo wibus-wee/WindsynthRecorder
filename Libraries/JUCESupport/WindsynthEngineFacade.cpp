@@ -8,6 +8,8 @@
 
 #include "WindsynthEngineFacade.hpp"
 #include <iostream>
+#include <thread>
+#include <chrono>
 
 namespace WindsynthVST::Engine {
 
@@ -122,27 +124,74 @@ void WindsynthEngineFacade::stop() {
 }
 
 void WindsynthEngineFacade::shutdown() {
-    std::cout << "[WindsynthEngineFacade] 关闭引擎" << std::endl;
-    
+    // 防止重复清理
+    static std::atomic<bool> shutdownCalled{false};
+    if (shutdownCalled.exchange(true)) {
+        std::cout << "[WindsynthEngineFacade] 引擎已经关闭，跳过重复清理" << std::endl;
+        return;
+    }
+
+    std::cout << "[WindsynthEngineFacade] ===== 开始关闭引擎 =====" << std::endl;
+
     stop();
-    
+
     try {
-        // 释放音频资源
+        // 第一步：清理 AudioProcessorGraph 中的所有节点（包括 VST3 插件）
         if (graphProcessor) {
+            std::cout << "[WindsynthEngineFacade] 第一步：清理音频处理图中的所有节点" << std::endl;
+
+            // 释放音频资源
+            std::cout << "[WindsynthEngineFacade] 释放音频资源..." << std::endl;
             graphProcessor->releaseResources();
-        }
-        
-        // 清理音频文件相关资源
-        if (graphProcessor) {
+
+            // 清理音频文件相关资源
+            std::cout << "[WindsynthEngineFacade] 清理音频文件相关资源..." << std::endl;
             graphProcessor->setTransportSource(nullptr);
+
+            // 清理图中的所有节点和连接 - 这会安全地释放所有 VST3 插件实例
+            std::cout << "[WindsynthEngineFacade] 清理图中的所有节点和连接..." << std::endl;
+            graphProcessor->getGraph().clear();
+
+            std::cout << "[WindsynthEngineFacade] 音频处理图已清理完成" << std::endl;
+        } else {
+            std::cout << "[WindsynthEngineFacade] 警告：graphProcessor 为空" << std::endl;
         }
+
+        // 给一点时间让插件清理完成
+        std::cout << "[WindsynthEngineFacade] 等待插件清理完成..." << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        // 第二步：关闭音频设备
+        if (ioManager) {
+            std::cout << "[WindsynthEngineFacade] 第二步：关闭音频设备" << std::endl;
+            auto* deviceManager = ioManager->getDeviceManager();
+            if (deviceManager) {
+                std::cout << "[WindsynthEngineFacade] 移除音频回调..." << std::endl;
+                // 移除音频回调
+                deviceManager->removeAudioCallback(graphProcessor.get());
+
+                std::cout << "[WindsynthEngineFacade] 关闭音频设备..." << std::endl;
+                // 关闭音频设备
+                deviceManager->closeAudioDevice();
+                std::cout << "[WindsynthEngineFacade] 音频设备已关闭" << std::endl;
+            } else {
+                std::cout << "[WindsynthEngineFacade] 警告：deviceManager 为空" << std::endl;
+            }
+        } else {
+            std::cout << "[WindsynthEngineFacade] 警告：ioManager 为空" << std::endl;
+        }
+
+        // 第三步：清理其他资源
+        std::cout << "[WindsynthEngineFacade] 第三步：清理其他资源" << std::endl;
         transportSource.reset();
         readerSource.reset();
-        
+
         notifyStateChange(EngineState::Stopped, "引擎已关闭");
-        
+        std::cout << "[WindsynthEngineFacade] ===== 引擎关闭完成 =====" << std::endl;
+
     } catch (const std::exception& e) {
         std::string error = "关闭引擎时出错: " + std::string(e.what());
+        std::cout << "[WindsynthEngineFacade] 错误：" << error << std::endl;
         notifyError(error);
     }
 }

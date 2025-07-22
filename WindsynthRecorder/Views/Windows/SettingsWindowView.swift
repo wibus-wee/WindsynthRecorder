@@ -28,7 +28,7 @@ struct SettingsWindowView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("关闭") {
-                    windowManager.closeSettings()
+                    windowManager.destroyWindow(withId: WindowManager.WindowConfig.settings.id)
                     dismiss()
                 }
                 .keyboardShortcut("w", modifiers: .command)

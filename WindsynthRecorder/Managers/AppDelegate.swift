@@ -76,12 +76,37 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         return false
     }
     
+    /// 应用是否应该终止
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        print("应用请求退出 - 开始清理音频资源")
+
+        // 停止并完全清理音频引擎以避免崩溃
+        let audioService = AudioGraphService.shared
+        if audioService.isRunning {
+            print("停止音频引擎...")
+            audioService.stop()
+        }
+
+        // 强制调用清理方法来释放所有资源
+        print("强制清理音频引擎资源...")
+        audioService.forceCleanup()
+
+        // 给音频线程充足时间来完全停止
+        Thread.sleep(forTimeInterval: 0.3)
+
+        // 清理窗口资源
+        WindowManager.shared.closeAllToolWindows()
+
+        print("音频资源清理完成 - 允许应用退出")
+        return .terminateNow
+    }
+
     /// 应用即将终止
     func applicationWillTerminate(_ notification: Notification) {
-        // 清理资源
-        WindowManager.shared.closeAllToolWindows()
+        print("应用即将终止 - 执行最终清理")
+        // 这里不再需要额外的清理，因为在 applicationShouldTerminate 中已经完成
     }
-    
+
     /// 应用是否应该在最后一个窗口关闭时终止
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         // 对于音频应用，通常不应该在关闭最后一个窗口时退出

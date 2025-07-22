@@ -18,7 +18,7 @@ struct LogsWindowView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button("关闭") {
-                        windowManager.closeLogs()
+                        windowManager.destroyWindow(withId: WindowManager.WindowConfig.logs.id)
                         dismiss()
                     }
                     .keyboardShortcut("w", modifiers: .command)
@@ -46,7 +46,7 @@ struct LogsWindowView: View {
             }
             .onChange(of: isPresented) { newValue in
                 if !newValue {
-                    windowManager.closeLogs()
+                    windowManager.destroyWindow(withId: WindowManager.WindowConfig.logs.id)
                     dismiss()
                 }
             }

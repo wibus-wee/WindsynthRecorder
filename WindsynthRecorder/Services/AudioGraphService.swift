@@ -282,17 +282,42 @@ class AudioGraphService: ObservableObject {
     }
 
     private func cleanup() {
+        print("[AudioGraphService] 开始清理音频引擎资源...")
+        logger.info("开始清理音频引擎资源...", details: "执行完整清理流程")
+
+        // 首先确保引擎已停止
+        if isRunning {
+            print("[AudioGraphService] 引擎仍在运行，先停止")
+            stop()
+        }
+
         // 停止统计信息定时器
         statisticsTimer?.invalidate()
         statisticsTimer = nil
 
         // 销毁引擎
         if let handle = engineHandle {
+            print("[AudioGraphService] 正在销毁音频引擎...")
+            logger.info("正在销毁音频引擎...", details: "调用 Engine_Shutdown 和 Engine_Destroy")
+
+            // 关闭引擎
+            print("[AudioGraphService] 调用 Engine_Shutdown")
             Engine_Shutdown(handle)
+            print("[AudioGraphService] Engine_Shutdown 完成")
+
+            // 给一点时间让所有音频回调完成
+            Thread.sleep(forTimeInterval: 0.2)
+
+            // 销毁引擎
+            print("[AudioGraphService] 调用 Engine_Destroy")
             Engine_Destroy(handle)
             engineHandle = nil
+            print("[AudioGraphService] Engine_Destroy 完成")
+
             logger.info("音频引擎已销毁", details: "资源清理完成")
         }
+
+        print("[AudioGraphService] 音频引擎资源清理完成")
     }
     
     // MARK: - Public Methods
@@ -322,10 +347,25 @@ class AudioGraphService: ObservableObject {
     func stop() {
         guard let handle = engineHandle else { return }
 
+        logger.info("正在停止音频处理...", details: "开始停止引擎")
+
+        // 停止引擎
         Engine_Stop(handle)
         isRunning = false
+
+        // 停止统计定时器
         stopStatisticsTimer()
+
+        // 给音频线程一些时间来完全停止
+        Thread.sleep(forTimeInterval: 0.05)
+
         logger.info("音频处理已停止", details: "引擎已安全停止")
+    }
+
+    /// 强制清理所有资源（用于应用退出时）
+    func forceCleanup() {
+        print("[AudioGraphService] 强制清理所有资源")
+        cleanup()
     }
     
     /// 扫描可用插件

@@ -6,6 +6,9 @@ project(WindsynthRecorderVST VERSION 1.0.0)
 # 设置 macOS 部署目标（与 Xcode 项目保持一致）
 set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0")
 
+# 设置 macOS 架构为 universal binary（支持 arm64 和 x86_64）
+set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64")
+
 # 设置C++标准
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

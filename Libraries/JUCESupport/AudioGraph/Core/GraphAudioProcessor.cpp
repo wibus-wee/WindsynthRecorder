@@ -425,6 +425,8 @@ std::vector<NodeInfo> GraphAudioProcessor::getAllNodes() const {
             NodeInfo info;
             info.nodeID = node->nodeID;
             info.name = node->getProcessor()->getName().toStdString();
+            info.pluginName = node->getProcessor()->getName().toStdString(); // 修复：设置插件名称
+            info.enabled = !node->isBypassed(); // 修复：设置启用状态
             info.numInputChannels = node->getProcessor()->getTotalNumInputChannels();
             info.numOutputChannels = node->getProcessor()->getTotalNumOutputChannels();
             info.acceptsMidi = node->getProcessor()->acceptsMidi();
@@ -448,6 +450,8 @@ NodeInfo GraphAudioProcessor::getNodeInfo(NodeID nodeID) const {
     NodeInfo info;
     info.nodeID = nodeID;
     info.name = node->getProcessor()->getName().toStdString();
+    info.pluginName = node->getProcessor()->getName().toStdString();
+    info.enabled = !node->isBypassed();
     info.numInputChannels = node->getProcessor()->getTotalNumInputChannels();
     info.numOutputChannels = node->getProcessor()->getTotalNumOutputChannels();
     info.acceptsMidi = node->getProcessor()->acceptsMidi();

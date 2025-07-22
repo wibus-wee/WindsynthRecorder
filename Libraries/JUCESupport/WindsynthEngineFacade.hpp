@@ -91,6 +91,21 @@ struct EngineStatistics {
 };
 
 /**
+ * 参数信息
+ */
+struct ParameterInfo {
+    std::string name;
+    std::string label;
+    float minValue = 0.0f;
+    float maxValue = 1.0f;
+    float defaultValue = 0.0f;
+    float currentValue = 0.0f;
+    bool isDiscrete = false;
+    int numSteps = 0;
+    std::string units;
+};
+
+/**
  * 回调函数类型定义
  */
 using EngineStateCallback = std::function<void(EngineState state, const std::string& message)>;
@@ -292,6 +307,66 @@ public:
      * @return 参数数量
      */
     int getNodeParameterCount(uint32_t nodeID) const;
+
+    /**
+     * 获取节点参数信息
+     * @param nodeID 节点ID
+     * @param parameterIndex 参数索引
+     * @return 参数信息，失败返回空的optional
+     */
+    std::optional<ParameterInfo> getNodeParameterInfo(uint32_t nodeID, int parameterIndex) const;
+
+    //==============================================================================
+    // 插件编辑器管理
+    //==============================================================================
+
+    /**
+     * 检查节点是否有编辑器
+     * @param nodeID 节点ID
+     * @return 有编辑器返回true
+     */
+    bool nodeHasEditor(uint32_t nodeID) const;
+
+    /**
+     * 显示节点编辑器
+     * @param nodeID 节点ID
+     * @return 成功返回true
+     */
+    bool showNodeEditor(uint32_t nodeID);
+
+    /**
+     * 隐藏节点编辑器
+     * @param nodeID 节点ID
+     * @return 成功返回true
+     */
+    bool hideNodeEditor(uint32_t nodeID);
+
+    /**
+     * 检查节点编辑器是否可见
+     * @param nodeID 节点ID
+     * @return 可见返回true
+     */
+    bool isNodeEditorVisible(uint32_t nodeID) const;
+
+    //==============================================================================
+    // 节点位置管理
+    //==============================================================================
+
+    /**
+     * 移动节点在处理链中的位置
+     * @param nodeID 要移动的节点ID
+     * @param newPosition 新位置索引
+     * @return 成功返回true
+     */
+    bool moveNode(uint32_t nodeID, int newPosition);
+
+    /**
+     * 交换两个节点的位置
+     * @param nodeID1 第一个节点ID
+     * @param nodeID2 第二个节点ID
+     * @return 成功返回true
+     */
+    bool swapNodes(uint32_t nodeID1, uint32_t nodeID2);
     
     //==============================================================================
     // 音频路由管理

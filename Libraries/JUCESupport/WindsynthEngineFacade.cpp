@@ -549,6 +549,169 @@ int WindsynthEngineFacade::getNodeParameterCount(uint32_t nodeID) const {
     }
 }
 
+std::optional<ParameterInfo> WindsynthEngineFacade::getNodeParameterInfo(uint32_t nodeID, int parameterIndex) const {
+    try {
+        AudioGraph::NodeID graphNodeID = convertToNodeID(nodeID);
+        auto* instance = pluginManager->getPluginInstance(graphNodeID);
+        if (!instance) {
+            return std::nullopt;
+        }
+
+        const auto& parameters = instance->getParameters();
+        if (parameterIndex < 0 || parameterIndex >= static_cast<int>(parameters.size())) {
+            return std::nullopt;
+        }
+
+        auto* param = parameters[parameterIndex];
+        if (!param) {
+            return std::nullopt;
+        }
+
+        ParameterInfo info;
+        info.name = param->getName(256).toStdString();
+        info.label = param->getLabel().toStdString();
+        info.minValue = 0.0f;
+        info.maxValue = 1.0f;
+        info.defaultValue = param->getDefaultValue();
+        info.currentValue = param->getValue();
+        info.isDiscrete = param->isDiscrete();
+        info.numSteps = param->getNumSteps();
+        info.units = param->getLabel().toStdString();
+
+        return info;
+    } catch (const std::exception& e) {
+        std::cerr << "[WindsynthEngineFacade] 获取节点参数信息失败: " << e.what() << std::endl;
+        return std::nullopt;
+    }
+}
+
+//==============================================================================
+// 插件编辑器管理
+//==============================================================================
+
+bool WindsynthEngineFacade::nodeHasEditor(uint32_t nodeID) const {
+    try {
+        AudioGraph::NodeID graphNodeID = convertToNodeID(nodeID);
+        auto* instance = pluginManager->getPluginInstance(graphNodeID);
+        if (!instance) {
+            return false;
+        }
+
+        return instance->hasEditor();
+    } catch (const std::exception& e) {
+        std::cerr << "[WindsynthEngineFacade] 检查节点编辑器失败: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool WindsynthEngineFacade::showNodeEditor(uint32_t nodeID) {
+    try {
+        AudioGraph::NodeID graphNodeID = convertToNodeID(nodeID);
+        auto* instance = pluginManager->getPluginInstance(graphNodeID);
+        if (!instance || !instance->hasEditor()) {
+            return false;
+        }
+
+        auto* editor = instance->createEditor();
+        if (!editor) {
+            return false;
+        }
+
+        // 创建一个简单的窗口来承载编辑器
+        // 注意：这里需要在主线程中执行
+        juce::MessageManager::callAsync([editor]() {
+            auto window = std::make_unique<juce::DocumentWindow>(
+                "Plugin Editor",
+                juce::Colours::lightgrey,
+                juce::DocumentWindow::allButtons
+            );
+
+            window->setContentOwned(editor, true);
+            window->setResizable(true, false);
+            window->centreWithSize(editor->getWidth(), editor->getHeight());
+            window->setVisible(true);
+
+            // 注意：这里需要管理窗口的生命周期
+            // 在实际实现中，应该将窗口存储在某个容器中
+            window.release(); // 暂时释放所有权，实际应该妥善管理
+        });
+
+        std::cout << "[WindsynthEngineFacade] 节点编辑器已显示: " << nodeID << std::endl;
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "[WindsynthEngineFacade] 显示节点编辑器失败: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool WindsynthEngineFacade::hideNodeEditor(uint32_t nodeID) {
+    try {
+        // TODO: 实现隐藏编辑器的逻辑
+        // 需要跟踪已打开的编辑器窗口
+        std::cout << "[WindsynthEngineFacade] 隐藏节点编辑器: " << nodeID << std::endl;
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "[WindsynthEngineFacade] 隐藏节点编辑器失败: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool WindsynthEngineFacade::isNodeEditorVisible(uint32_t nodeID) const {
+    try {
+        // TODO: 实现检查编辑器可见性的逻辑
+        // 需要跟踪已打开的编辑器窗口
+        return false;
+    } catch (const std::exception& e) {
+        std::cerr << "[WindsynthEngineFacade] 检查节点编辑器可见性失败: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+//==============================================================================
+// 节点位置管理
+//==============================================================================
+
+bool WindsynthEngineFacade::moveNode(uint32_t nodeID, int newPosition) {
+    try {
+        AudioGraph::NodeID graphNodeID = convertToNodeID(nodeID);
+
+        // 通过GraphManager移动节点
+        if (graphManager) {
+            bool success = graphManager->moveNode(graphNodeID, newPosition);
+            if (success) {
+                std::cout << "[WindsynthEngineFacade] 节点已移动: " << nodeID << " -> 位置 " << newPosition << std::endl;
+            }
+            return success;
+        }
+
+        return false;
+    } catch (const std::exception& e) {
+        std::cerr << "[WindsynthEngineFacade] 移动节点失败: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool WindsynthEngineFacade::swapNodes(uint32_t nodeID1, uint32_t nodeID2) {
+    try {
+        AudioGraph::NodeID graphNodeID1 = convertToNodeID(nodeID1);
+        AudioGraph::NodeID graphNodeID2 = convertToNodeID(nodeID2);
+
+        // 由于GraphManager没有直接的swapNodes方法，我们通过两次moveNode来实现交换
+        if (graphManager) {
+            // 获取两个节点的当前位置
+            // 这里需要实现获取节点位置的逻辑，暂时返回false
+            // TODO: 实现真正的节点交换逻辑
+            std::cout << "[WindsynthEngineFacade] 节点交换功能暂未实现: " << nodeID1 << " <-> " << nodeID2 << std::endl;
+            return false;
+        }
+
+        return false;
+    } catch (const std::exception& e) {
+        std::cerr << "[WindsynthEngineFacade] 交换节点失败: " << e.what() << std::endl;
+        return false;
+    }
+}
+
 //==============================================================================
 // 音频路由管理
 //==============================================================================

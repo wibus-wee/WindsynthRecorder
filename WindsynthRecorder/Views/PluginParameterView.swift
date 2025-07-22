@@ -11,6 +11,7 @@ import SwiftUI
 /// 插件参数控制界面
 struct PluginParameterView: View {
     let pluginName: String
+    let nodeID: UInt32
     let audioGraphService: AudioGraphService
     
     @Environment(\.dismiss) private var dismiss
@@ -118,6 +119,7 @@ struct PluginParameterView: View {
                 ForEach(parameters, id: \.id) { parameter in
                     ParameterControlView(
                         parameter: parameter,
+                        nodeID: nodeID,
                         audioGraphService: audioGraphService,
                         pluginName: pluginName
                     )
@@ -131,13 +133,37 @@ struct PluginParameterView: View {
     
     private func loadPluginParameters() {
         isLoading = true
-        
-        // 模拟参数加载（实际实现需要从VST插件获取参数信息）
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            // 这里应该调用VST管理器获取实际参数
-            // 目前创建一些示例参数用于演示
-            parameters = createSampleParameters()
-            isLoading = false
+        errorMessage = nil
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            // 从AudioGraphService获取真实参数数据
+            let paramCount = audioGraphService.getNodeParameterCount(nodeID: nodeID)
+            var loadedParameters: [PluginParameter] = []
+
+            for i in 0..<paramCount {
+                if let paramInfo = audioGraphService.getNodeParameterInfo(nodeID: nodeID, parameterIndex: i) {
+                    let parameter = PluginParameter(
+                        id: i,
+                        name: paramInfo.name,
+                        value: paramInfo.currentValue,
+                        minValue: paramInfo.minValue,
+                        maxValue: paramInfo.maxValue,
+                        defaultValue: paramInfo.defaultValue,
+                        unit: paramInfo.units
+                    )
+                    loadedParameters.append(parameter)
+                }
+            }
+
+            DispatchQueue.main.async {
+                if loadedParameters.isEmpty {
+                    // 如果没有参数，使用模拟数据作为后备
+                    parameters = createSampleParameters()
+                } else {
+                    parameters = loadedParameters
+                }
+                isLoading = false
+            }
         }
     }
     
@@ -214,6 +240,7 @@ struct PluginParameter {
 /// 单个参数控制视图
 struct ParameterControlView: View {
     @State var parameter: PluginParameter
+    let nodeID: UInt32
     let audioGraphService: AudioGraphService
     let pluginName: String
     
@@ -263,9 +290,12 @@ struct ParameterControlView: View {
     }
     
     private func updatePluginParameter() {
-        // TODO: 实现AudioGraphService的参数更新功能
-        // audioGraphService.setNodeParameter(nodeID: nodeID, parameterIndex: parameter.id, value: parameter.value)
-        print("更新插件参数: \(pluginName) - \(parameter.name) = \(parameter.value)")
+        let success = audioGraphService.setNodeParameter(nodeID: nodeID, parameterIndex: parameter.id, value: parameter.value)
+        if success {
+            print("✅ 参数更新成功: \(pluginName) - \(parameter.name) = \(parameter.value)")
+        } else {
+            print("❌ 参数更新失败: \(pluginName) - \(parameter.name) = \(parameter.value)")
+        }
     }
     
     private func resetParameter() {
@@ -277,6 +307,7 @@ struct ParameterControlView: View {
 #Preview {
     PluginParameterView(
         pluginName: "示例插件",
+        nodeID: 1,
         audioGraphService: AudioGraphService.shared
     )
 }

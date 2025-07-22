@@ -17,16 +17,11 @@ struct AudioMixerView: View {
     @State private var showingVSTProcessor = false
     @State private var showingPluginParameters = false
     @State private var selectedPluginName: String?
+    @State private var selectedNodeID: UInt32?
     @State private var outputGain: Float = 0.75
     @State private var isMonitoring = true
     @State private var masterVolume: Float = 0.8
     @State private var inputGain: Float = 0.6
-
-    // 导出相关状态
-    @State private var showingExportOptions = false
-    @State private var showingExportProgress = false
-    @State private var exportConfig = AudioExportConfig.forWebSharing()
-    @StateObject private var exportService = AudioExportService()
 
     // 波形数据
     @State private var waveformData: [Float] = []
@@ -102,26 +97,13 @@ struct AudioMixerView: View {
             VSTProcessorView()
         }
         .sheet(isPresented: $showingPluginParameters) {
-            if let pluginName = selectedPluginName {
-                // TODO: 更新PluginParameterView以支持AudioGraphService
-                // 暂时注释掉，避免编译错误
-                Text("Plugin Parameters: \(pluginName)")
-                    .padding()
+            if let pluginName = selectedPluginName, let nodeID = selectedNodeID {
+                PluginParameterView(
+                    pluginName: pluginName,
+                    nodeID: nodeID,
+                    audioGraphService: audioGraphService
+                )
             }
-        }
-        .sheet(isPresented: $showingExportOptions) {
-            AudioExportOptionsView(
-                config: $exportConfig,
-                exportService: exportService,
-                currentAudioURL: nil, // TODO: 实现getCurrentAudioURL功能
-                isPresented: $showingExportOptions
-            )
-        }
-        .sheet(isPresented: $showingExportProgress) {
-            AudioExportProgressView(
-                exportService: exportService,
-                isPresented: $showingExportProgress
-            )
         }
         .onReceive(audioGraphService.$errorMessage) { error in
             if let error = error {
@@ -152,31 +134,6 @@ struct AudioMixerView: View {
                 Text("WindsynthRecorder")
                     .font(.system(.title3, design: .rounded, weight: .semibold))
                     .foregroundColor(.white)
-            }
-
-            Spacer()
-
-            // 导出控制按钮
-            HStack(spacing: 12) {
-                // 快速导出按钮
-                Button(action: {
-                    showingExportOptions = true
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 12, weight: .medium))
-                        Text("导出")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.orange.opacity(0.2))
-                    .foregroundColor(.orange)
-                    .cornerRadius(4)
-                }
-                .buttonStyle(.plain)
-                .help("导出当前音频")
-                .disabled(currentFileName.isEmpty)
             }
 
             Spacer()
@@ -399,6 +356,7 @@ struct AudioMixerView: View {
                                 // 参数按钮
                                 Button(action: {
                                     selectedPluginName = plugin.pluginName
+                                    selectedNodeID = plugin.nodeID
                                     showingPluginParameters = true
                                 }) {
                                     Image(systemName: "gear")
@@ -811,12 +769,24 @@ struct AudioMixerView: View {
     private func handlePluginMove(from sourceIndex: Int, to destinationIndex: Int) {
         print("🔄 拖拽移动插件: from \(sourceIndex) to \(destinationIndex)")
 
-        // TODO: 实现AudioGraphService的插件移动功能
-        // 目前AudioGraphService还没有movePlugin方法，需要在C++层实现
-        print("⚠️ 插件移动功能待实现")
+        let loadedPlugins = audioGraphService.loadedPlugins
 
-        // 临时解决方案：重新排列本地数组
-        // 实际应该调用audioGraphService.moveNode(from:to:)
+        // 检查索引有效性
+        guard sourceIndex >= 0 && sourceIndex < loadedPlugins.count &&
+              destinationIndex >= 0 && destinationIndex < loadedPlugins.count &&
+              sourceIndex != destinationIndex else {
+            print("❌ 无效的移动索引")
+            return
+        }
+
+        let sourcePlugin = loadedPlugins[sourceIndex]
+        let success = audioGraphService.moveNode(nodeID: sourcePlugin.nodeID, newPosition: destinationIndex)
+
+        if success {
+            print("✅ 插件移动成功: \(sourcePlugin.name) -> 位置 \(destinationIndex)")
+        } else {
+            print("❌ 插件移动失败: \(sourcePlugin.name)")
+        }
     }
 
     // MARK: - 定时器管理

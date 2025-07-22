@@ -93,6 +93,38 @@ struct AudioStatistics {
     }
 }
 
+/// 参数信息（Swift版本）
+struct ParameterInfo {
+    let name: String
+    let label: String
+    let minValue: Float
+    let maxValue: Float
+    let defaultValue: Float
+    let currentValue: Float
+    let isDiscrete: Bool
+    let numSteps: Int
+    let units: String
+
+    /// 从C结构转换
+    init(from cStruct: ParameterInfo_C) {
+        self.name = withUnsafeBytes(of: cStruct.name) { bytes in
+            String(cString: bytes.bindMemory(to: CChar.self).baseAddress!)
+        }
+        self.label = withUnsafeBytes(of: cStruct.label) { bytes in
+            String(cString: bytes.bindMemory(to: CChar.self).baseAddress!)
+        }
+        self.units = withUnsafeBytes(of: cStruct.units) { bytes in
+            String(cString: bytes.bindMemory(to: CChar.self).baseAddress!)
+        }
+        self.minValue = cStruct.minValue
+        self.maxValue = cStruct.maxValue
+        self.defaultValue = cStruct.defaultValue
+        self.currentValue = cStruct.currentValue
+        self.isDiscrete = cStruct.isDiscrete
+        self.numSteps = Int(cStruct.numSteps)
+    }
+}
+
 /// 引擎配置
 struct EngineConfiguration {
     let sampleRate: Double
@@ -377,6 +409,22 @@ class AudioGraphService: ObservableObject {
         return Int(Engine_GetNodeParameterCount(handle, nodeID))
     }
 
+    /// 获取节点参数信息
+    func getNodeParameterInfo(nodeID: UInt32, parameterIndex: Int) -> ParameterInfo? {
+        guard let handle = engineHandle else {
+            return nil
+        }
+
+        var cInfo = ParameterInfo_C()
+        let success = Engine_GetNodeParameterInfo(handle, nodeID, Int32(parameterIndex), &cInfo)
+
+        if success {
+            return ParameterInfo(from: cInfo)
+        }
+
+        return nil
+    }
+
     /// 设置节点旁路状态
     func setNodeBypassed(nodeID: UInt32, bypassed: Bool) -> Bool {
         guard let handle = engineHandle else {
@@ -404,6 +452,96 @@ class AudioGraphService: ObservableObject {
         if success {
             refreshLoadedPlugins() // 更新状态
             logger.info("节点启用状态已更新", details: "节点ID: \(nodeID), 启用: \(enabled)")
+        }
+
+        return success
+    }
+
+    // MARK: - 插件编辑器管理
+
+    /// 检查节点是否有编辑器
+    func nodeHasEditor(nodeID: UInt32) -> Bool {
+        guard let handle = engineHandle else {
+            return false
+        }
+
+        return Engine_NodeHasEditor(handle, nodeID)
+    }
+
+    /// 显示节点编辑器
+    func showNodeEditor(nodeID: UInt32) -> Bool {
+        guard let handle = engineHandle else {
+            return false
+        }
+
+        let success = Engine_ShowNodeEditor(handle, nodeID)
+
+        if success {
+            logger.info("节点编辑器已显示", details: "节点ID: \(nodeID)")
+        } else {
+            logger.error("显示节点编辑器失败", details: "节点ID: \(nodeID)")
+        }
+
+        return success
+    }
+
+    /// 隐藏节点编辑器
+    func hideNodeEditor(nodeID: UInt32) -> Bool {
+        guard let handle = engineHandle else {
+            return false
+        }
+
+        let success = Engine_HideNodeEditor(handle, nodeID)
+
+        if success {
+            logger.info("节点编辑器已隐藏", details: "节点ID: \(nodeID)")
+        }
+
+        return success
+    }
+
+    /// 检查节点编辑器是否可见
+    func isNodeEditorVisible(nodeID: UInt32) -> Bool {
+        guard let handle = engineHandle else {
+            return false
+        }
+
+        return Engine_IsNodeEditorVisible(handle, nodeID)
+    }
+
+    // MARK: - 节点位置管理
+
+    /// 移动节点在处理链中的位置
+    func moveNode(nodeID: UInt32, newPosition: Int) -> Bool {
+        guard let handle = engineHandle else {
+            return false
+        }
+
+        let success = Engine_MoveNode(handle, nodeID, Int32(newPosition))
+
+        if success {
+            refreshLoadedPlugins() // 更新插件列表顺序
+            logger.info("节点已移动", details: "节点ID: \(nodeID), 新位置: \(newPosition)")
+        } else {
+            logger.error("移动节点失败", details: "节点ID: \(nodeID), 新位置: \(newPosition)")
+        }
+
+        return success
+    }
+
+    /// 交换两个节点的位置
+    func swapNodes(nodeID1: UInt32, nodeID2: UInt32) -> Bool {
+        guard let handle = engineHandle else {
+            return false
+        }
+
+        let success = Engine_SwapNodes(handle, nodeID1, nodeID2)
+
+        if success {
+            refreshLoadedPlugins() // 更新插件列表顺序
+            logger.info("节点已交换", details: "节点1: \(nodeID1), 节点2: \(nodeID2)")
+        } else {
+            logger.error("交换节点失败", details: "节点1: \(nodeID1), 节点2: \(nodeID2)")
         }
 
         return success

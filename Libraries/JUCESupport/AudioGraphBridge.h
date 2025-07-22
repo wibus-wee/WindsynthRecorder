@@ -89,6 +89,21 @@ typedef struct {
 } EngineStatistics_C;
 
 /**
+ * 参数信息结构（C兼容）
+ */
+typedef struct {
+    char name[128];
+    char label[64];
+    float minValue;
+    float maxValue;
+    float defaultValue;
+    float currentValue;
+    bool isDiscrete;
+    int numSteps;
+    char units[32];
+} ParameterInfo_C;
+
+/**
  * 回调函数类型定义
  */
 typedef void (*EngineStateCallback_C)(EngineState_C state, const char* message, void* userData);
@@ -319,6 +334,66 @@ float Engine_GetNodeParameter(WindsynthEngineHandle handle, uint32_t nodeID, int
  * @return 参数数量
  */
 int Engine_GetNodeParameterCount(WindsynthEngineHandle handle, uint32_t nodeID);
+
+/**
+ * 获取节点参数信息
+ * @param handle 引擎句柄
+ * @param nodeID 节点ID
+ * @param parameterIndex 参数索引
+ * @param info 输出的参数信息
+ * @return 成功返回true
+ */
+bool Engine_GetNodeParameterInfo(WindsynthEngineHandle handle, uint32_t nodeID, int parameterIndex, ParameterInfo_C* info);
+
+/**
+ * 检查节点是否有编辑器
+ * @param handle 引擎句柄
+ * @param nodeID 节点ID
+ * @return 有编辑器返回true
+ */
+bool Engine_NodeHasEditor(WindsynthEngineHandle handle, uint32_t nodeID);
+
+/**
+ * 显示节点编辑器
+ * @param handle 引擎句柄
+ * @param nodeID 节点ID
+ * @return 成功返回true
+ */
+bool Engine_ShowNodeEditor(WindsynthEngineHandle handle, uint32_t nodeID);
+
+/**
+ * 隐藏节点编辑器
+ * @param handle 引擎句柄
+ * @param nodeID 节点ID
+ * @return 成功返回true
+ */
+bool Engine_HideNodeEditor(WindsynthEngineHandle handle, uint32_t nodeID);
+
+/**
+ * 检查节点编辑器是否可见
+ * @param handle 引擎句柄
+ * @param nodeID 节点ID
+ * @return 可见返回true
+ */
+bool Engine_IsNodeEditorVisible(WindsynthEngineHandle handle, uint32_t nodeID);
+
+/**
+ * 移动节点在处理链中的位置
+ * @param handle 引擎句柄
+ * @param nodeID 要移动的节点ID
+ * @param newPosition 新位置索引
+ * @return 成功返回true
+ */
+bool Engine_MoveNode(WindsynthEngineHandle handle, uint32_t nodeID, int newPosition);
+
+/**
+ * 交换两个节点的位置
+ * @param handle 引擎句柄
+ * @param nodeID1 第一个节点ID
+ * @param nodeID2 第二个节点ID
+ * @return 成功返回true
+ */
+bool Engine_SwapNodes(WindsynthEngineHandle handle, uint32_t nodeID1, uint32_t nodeID2);
 
 //==============================================================================
 // 音频路由管理

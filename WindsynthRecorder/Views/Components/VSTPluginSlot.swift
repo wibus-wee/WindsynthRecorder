@@ -63,8 +63,14 @@ struct ProfessionalPluginSlot: View {
                 .help(isEnabled ? "禁用插件" : "启用插件")
 
                 Button(action: {
-                    // TODO: 实现AudioGraphService的插件编辑器显示功能
-                    // audioGraphService.showPluginEditor(nodeID: nodeID)
+                    if audioGraphService.nodeHasEditor(nodeID: UInt32(identifier.hashValue)) {
+                        let success = audioGraphService.showNodeEditor(nodeID: UInt32(identifier.hashValue))
+                        if !success {
+                            print("❌ 无法显示插件编辑器: \(identifier)")
+                        }
+                    } else {
+                        print("ℹ️ 插件没有编辑器界面: \(identifier)")
+                    }
                 }) {
                     Image(systemName: "slider.horizontal.3")
                         .font(.caption)

@@ -562,6 +562,128 @@ int Engine_GetNodeParameterCount(WindsynthEngineHandle handle, uint32_t nodeID) 
     }
 }
 
+bool Engine_GetNodeParameterInfo(WindsynthEngineHandle handle, uint32_t nodeID, int parameterIndex, ParameterInfo_C* info) {
+    auto wrapper = getEngineWrapper(handle);
+    if (!wrapper || !info) {
+        return false;
+    }
+
+    try {
+        auto paramInfo = wrapper->engine->getNodeParameterInfo(nodeID, parameterIndex);
+        if (!paramInfo.has_value()) {
+            return false;
+        }
+
+        const auto& param = paramInfo.value();
+
+        // 安全地复制字符串
+        strncpy(info->name, param.name.c_str(), sizeof(info->name) - 1);
+        info->name[sizeof(info->name) - 1] = '\0';
+
+        strncpy(info->label, param.label.c_str(), sizeof(info->label) - 1);
+        info->label[sizeof(info->label) - 1] = '\0';
+
+        strncpy(info->units, param.units.c_str(), sizeof(info->units) - 1);
+        info->units[sizeof(info->units) - 1] = '\0';
+
+        info->minValue = param.minValue;
+        info->maxValue = param.maxValue;
+        info->defaultValue = param.defaultValue;
+        info->currentValue = param.currentValue;
+        info->isDiscrete = param.isDiscrete;
+        info->numSteps = param.numSteps;
+
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "[AudioGraphBridge] 获取节点参数信息失败: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool Engine_NodeHasEditor(WindsynthEngineHandle handle, uint32_t nodeID) {
+    auto wrapper = getEngineWrapper(handle);
+    if (!wrapper) {
+        return false;
+    }
+
+    try {
+        return wrapper->engine->nodeHasEditor(nodeID);
+    } catch (const std::exception& e) {
+        std::cerr << "[AudioGraphBridge] 检查节点编辑器失败: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool Engine_ShowNodeEditor(WindsynthEngineHandle handle, uint32_t nodeID) {
+    auto wrapper = getEngineWrapper(handle);
+    if (!wrapper) {
+        return false;
+    }
+
+    try {
+        return wrapper->engine->showNodeEditor(nodeID);
+    } catch (const std::exception& e) {
+        std::cerr << "[AudioGraphBridge] 显示节点编辑器失败: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool Engine_HideNodeEditor(WindsynthEngineHandle handle, uint32_t nodeID) {
+    auto wrapper = getEngineWrapper(handle);
+    if (!wrapper) {
+        return false;
+    }
+
+    try {
+        return wrapper->engine->hideNodeEditor(nodeID);
+    } catch (const std::exception& e) {
+        std::cerr << "[AudioGraphBridge] 隐藏节点编辑器失败: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool Engine_IsNodeEditorVisible(WindsynthEngineHandle handle, uint32_t nodeID) {
+    auto wrapper = getEngineWrapper(handle);
+    if (!wrapper) {
+        return false;
+    }
+
+    try {
+        return wrapper->engine->isNodeEditorVisible(nodeID);
+    } catch (const std::exception& e) {
+        std::cerr << "[AudioGraphBridge] 检查节点编辑器可见性失败: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool Engine_MoveNode(WindsynthEngineHandle handle, uint32_t nodeID, int newPosition) {
+    auto wrapper = getEngineWrapper(handle);
+    if (!wrapper) {
+        return false;
+    }
+
+    try {
+        return wrapper->engine->moveNode(nodeID, newPosition);
+    } catch (const std::exception& e) {
+        std::cerr << "[AudioGraphBridge] 移动节点失败: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool Engine_SwapNodes(WindsynthEngineHandle handle, uint32_t nodeID1, uint32_t nodeID2) {
+    auto wrapper = getEngineWrapper(handle);
+    if (!wrapper) {
+        return false;
+    }
+
+    try {
+        return wrapper->engine->swapNodes(nodeID1, nodeID2);
+    } catch (const std::exception& e) {
+        std::cerr << "[AudioGraphBridge] 交换节点失败: " << e.what() << std::endl;
+        return false;
+    }
+}
+
 //==============================================================================
 // 音频路由管理
 //==============================================================================

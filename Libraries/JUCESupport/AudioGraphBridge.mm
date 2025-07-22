@@ -495,7 +495,12 @@ bool Engine_SetNodeBypassed(WindsynthEngineHandle handle, uint32_t nodeID, bool 
     }
 
     try {
-        return wrapper->engine->setNodeBypassed(nodeID, bypassed);
+        bool success = wrapper->engine->setNodeBypassed(nodeID, bypassed);
+        if (success) {
+            // 更新缓存的节点列表
+            wrapper->loadedNodes = wrapper->engine->getLoadedNodes();
+        }
+        return success;
     } catch (const std::exception& e) {
         std::cerr << "[AudioGraphBridge] 设置节点旁路状态失败: " << e.what() << std::endl;
         return false;
@@ -509,7 +514,12 @@ bool Engine_SetNodeEnabled(WindsynthEngineHandle handle, uint32_t nodeID, bool e
     }
 
     try {
-        return wrapper->engine->setNodeEnabled(nodeID, enabled);
+        bool success = wrapper->engine->setNodeEnabled(nodeID, enabled);
+        if (success) {
+            // 更新缓存的节点列表
+            wrapper->loadedNodes = wrapper->engine->getLoadedNodes();
+        }
+        return success;
     } catch (const std::exception& e) {
         std::cerr << "[AudioGraphBridge] 设置节点启用状态失败: " << e.what() << std::endl;
         return false;

@@ -133,6 +133,9 @@ void WindsynthEngineFacade::shutdown() {
         }
         
         // 清理音频文件相关资源
+        if (graphProcessor) {
+            graphProcessor->setTransportSource(nullptr);
+        }
         transportSource.reset();
         readerSource.reset();
         
@@ -158,30 +161,35 @@ bool WindsynthEngineFacade::isRunning() const {
 
 bool WindsynthEngineFacade::loadAudioFile(const std::string& filePath) {
     std::cout << "[WindsynthEngineFacade] 加载音频文件: " << filePath << std::endl;
-    
+
     try {
         juce::File audioFile(filePath);
         if (!audioFile.existsAsFile()) {
             notifyError("音频文件不存在: " + filePath);
             return false;
         }
-        
+
         // 创建音频格式读取器
         auto reader = formatManager->createReaderFor(audioFile);
         if (!reader) {
             notifyError("无法读取音频文件: " + filePath);
             return false;
         }
-        
+
         // 创建音频格式读取器源
         readerSource = std::make_unique<juce::AudioFormatReaderSource>(reader, true);
-        
+
         // 设置到传输源
         transportSource->setSource(readerSource.get(), 0, nullptr, reader->sampleRate);
-        
+
+        // 将transportSource设置到GraphAudioProcessor中
+        if (graphProcessor) {
+            graphProcessor->setTransportSource(transportSource.get());
+        }
+
         std::cout << "[WindsynthEngineFacade] 音频文件加载成功" << std::endl;
         return true;
-        
+
     } catch (const std::exception& e) {
         std::string error = "加载音频文件失败: " + std::string(e.what());
         notifyError(error);

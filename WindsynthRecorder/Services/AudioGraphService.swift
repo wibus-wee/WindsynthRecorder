@@ -9,6 +9,19 @@
 import Foundation
 import Combine
 
+/// 插件加载回调上下文
+private class PluginLoadCallbackContext {
+    let service: AudioGraphService
+    let identifier: String
+    let completion: (Bool, String?) -> Void
+
+    init(service: AudioGraphService, identifier: String, completion: @escaping (Bool, String?) -> Void) {
+        self.service = service
+        self.identifier = identifier
+        self.completion = completion
+    }
+}
+
 /// 插件描述信息（Swift版本）
 struct PluginDescription {
     let identifier: String
@@ -203,7 +216,15 @@ class AudioGraphService: ObservableObject {
 
         setupEngine()
         setupCallbacks()
-        logger.info("AudioGraphService初始化", details: "真实C++引擎已启动")
+
+        // 自动启动引擎
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            if self.start() {
+                self.logger.info("AudioGraphService初始化完成", details: "引擎已自动启动")
+            } else {
+                self.logger.error("AudioGraphService初始化失败", details: "引擎启动失败")
+            }
+        }
     }
 
     deinit {
@@ -335,41 +356,105 @@ class AudioGraphService: ObservableObject {
         return Int(count)
     }
 
-    /// 通过标识符加载插件
-    func loadPlugin(identifier: String, displayName: String = "") -> Bool {
+    /// 通过标识符加载插件（异步）
+    func loadPlugin(identifier: String, displayName: String = "", completion: @escaping (Bool, String?) -> Void) {
         guard let handle = engineHandle else {
-            errorMessage = "Audio engine not initialized"
-            return false
+            completion(false, "Audio engine not initialized")
+            return
         }
 
-        // 使用同步方式避免回调内存问题
-        // 暂时使用nil回调，表示同步加载
-        Engine_LoadPluginByIdentifier(handle, identifier, displayName.isEmpty ? nil : displayName, nil, nil)
+        logger.info("开始加载插件", details: "标识符: \(identifier)")
 
-        // 刷新插件列表
-        refreshLoadedPlugins()
+        // 创建回调上下文
+        let callbackContext = PluginLoadCallbackContext(
+            service: self,
+            identifier: identifier,
+            completion: completion
+        )
 
-        logger.info("插件加载请求已发送", details: "标识符: \(identifier)")
-        return true // 简化返回值，实际应该检查加载结果
+        // 保存回调上下文（防止被释放）
+        let contextPointer = Unmanaged.passRetained(callbackContext).toOpaque()
+
+        // 调用异步加载，传递回调
+        Engine_LoadPluginByIdentifier(
+            handle,
+            identifier,
+            displayName.isEmpty ? nil : displayName,
+            { nodeID, success, error, userData in
+                // C回调函数
+                guard let userData = userData else { return }
+
+                let context = Unmanaged<PluginLoadCallbackContext>.fromOpaque(userData).takeRetainedValue()
+
+                DispatchQueue.main.async {
+                    if success {
+                        // 刷新已加载插件列表
+                        context.service.refreshLoadedPlugins()
+                        context.completion(true, nil)
+                        context.service.logger.info("插件加载成功", details: "节点ID: \(nodeID)")
+                    } else {
+                        let errorMsg = error != nil ? String(cString: error!) : "未知错误"
+                        context.completion(false, errorMsg)
+                        context.service.logger.error("插件加载失败", details: errorMsg)
+                    }
+                }
+            },
+            contextPointer
+        )
     }
 
-    /// 移除节点
-    func removeNode(nodeID: UInt32) -> Bool {
+    /// 通过标识符加载插件（同步版本，用于向后兼容）
+    @available(*, deprecated, message: "使用异步版本 loadPlugin(identifier:displayName:completion:)")
+    func loadPlugin(identifier: String, displayName: String = "") -> Bool {
+        var result = false
+        let semaphore = DispatchSemaphore(value: 0)
+
+        loadPlugin(identifier: identifier, displayName: displayName) { success, _ in
+            result = success
+            semaphore.signal()
+        }
+
+        // 等待最多3秒
+        _ = semaphore.wait(timeout: .now() + 3.0)
+        return result
+    }
+
+    /// 移除节点（异步）
+    func removeNode(nodeID: UInt32, completion: @escaping (Bool) -> Void) {
         guard let handle = engineHandle else {
-            errorMessage = "Audio engine not initialized"
-            return false
+            completion(false)
+            return
         }
 
-        let success = Engine_RemoveNode(handle, nodeID)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let success = Engine_RemoveNode(handle, nodeID)
 
-        if success {
-            refreshLoadedPlugins()
-            logger.info("节点移除成功", details: "节点ID: \(nodeID)")
-        } else {
-            logger.error("节点移除失败", details: "节点ID: \(nodeID)")
+            DispatchQueue.main.async {
+                if success {
+                    self?.refreshLoadedPlugins()
+                    self?.logger.info("节点移除成功", details: "节点ID: \(nodeID)")
+                } else {
+                    self?.logger.error("节点移除失败", details: "节点ID: \(nodeID)")
+                }
+                completion(success)
+            }
+        }
+    }
+
+    /// 移除节点（同步版本，用于向后兼容）
+    @available(*, deprecated, message: "使用异步版本 removeNode(nodeID:completion:)")
+    func removeNode(nodeID: UInt32) -> Bool {
+        var result = false
+        let semaphore = DispatchSemaphore(value: 0)
+
+        removeNode(nodeID: nodeID) { success in
+            result = success
+            semaphore.signal()
         }
 
-        return success
+        // 等待最多2秒
+        _ = semaphore.wait(timeout: .now() + 2.0)
+        return result
     }
     
     /// 设置节点参数
@@ -441,20 +526,40 @@ class AudioGraphService: ObservableObject {
         return success
     }
 
-    /// 设置节点启用状态
-    func setNodeEnabled(nodeID: UInt32, enabled: Bool) -> Bool {
+    /// 设置节点启用状态（异步）
+    func setNodeEnabled(nodeID: UInt32, enabled: Bool, completion: @escaping (Bool) -> Void) {
         guard let handle = engineHandle else {
-            return false
+            completion(false)
+            return
         }
 
-        let success = Engine_SetNodeEnabled(handle, nodeID, enabled)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let success = Engine_SetNodeEnabled(handle, nodeID, enabled)
 
-        if success {
-            refreshLoadedPlugins() // 更新状态
-            logger.info("节点启用状态已更新", details: "节点ID: \(nodeID), 启用: \(enabled)")
+            DispatchQueue.main.async {
+                if success {
+                    self?.refreshLoadedPlugins() // 更新状态
+                    self?.logger.info("节点启用状态已更新", details: "节点ID: \(nodeID), 启用: \(enabled)")
+                }
+                completion(success)
+            }
+        }
+    }
+
+    /// 设置节点启用状态（同步版本，用于向后兼容）
+    @available(*, deprecated, message: "使用异步版本 setNodeEnabled(nodeID:enabled:completion:)")
+    func setNodeEnabled(nodeID: UInt32, enabled: Bool) -> Bool {
+        var result = false
+        let semaphore = DispatchSemaphore(value: 0)
+
+        setNodeEnabled(nodeID: nodeID, enabled: enabled) { success in
+            result = success
+            semaphore.signal()
         }
 
-        return success
+        // 等待最多1秒
+        _ = semaphore.wait(timeout: .now() + 1.0)
+        return result
     }
 
     // MARK: - 插件编辑器管理

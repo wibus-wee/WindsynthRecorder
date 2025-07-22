@@ -566,22 +566,26 @@ struct ProfessionalPluginRowView: View {
     }
 
     private func loadPlugin() {
-        let success = audioGraphService.loadPlugin(identifier: plugin.identifier)
-        if success {
-            print("✅ 成功启用插件: \(plugin.name)")
-        } else {
-            print("❌ 启用插件失败: \(plugin.name)")
+        let pluginName = plugin.name
+        audioGraphService.loadPlugin(identifier: plugin.identifier) { success, error in
+            if success {
+                print("✅ 成功启用插件: \(pluginName)")
+            } else {
+                print("❌ 启用插件失败: \(pluginName) - \(error ?? "未知错误")")
+            }
         }
     }
 
     private func unloadPlugin() {
         // 找到对应的节点ID
         if let nodeInfo = audioGraphService.loadedPlugins.first(where: { $0.pluginName == plugin.name }) {
-            let success = audioGraphService.removeNode(nodeID: nodeInfo.nodeID)
-            if success {
-                print("✅ 成功禁用插件: \(plugin.name)")
-            } else {
-                print("❌ 禁用插件失败: \(plugin.name)")
+            let pluginName = plugin.name
+            audioGraphService.removeNode(nodeID: nodeInfo.nodeID) { success in
+                if success {
+                    print("✅ 成功禁用插件: \(pluginName)")
+                } else {
+                    print("❌ 禁用插件失败: \(pluginName)")
+                }
             }
         }
     }

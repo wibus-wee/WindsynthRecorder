@@ -317,7 +317,7 @@ struct AudioMixerView: View {
             } else {
 
                 List {
-                    ForEach(audioGraphService.loadedPlugins, id: \.nodeID) { plugin in
+                    ForEach(actualPlugins, id: \.nodeID) { plugin in
                         // 简化的插件槽显示，避免依赖VSTManagerExample
                         HStack(spacing: 12) {
                             // 拖拽指示器
@@ -344,7 +344,14 @@ struct AudioMixerView: View {
                             HStack(spacing: 6) {
                                 // 开关按钮
                                 Button(action: {
-                                    _ = audioGraphService.setNodeEnabled(nodeID: plugin.nodeID, enabled: !plugin.isEnabled)
+                                    let newState = !plugin.isEnabled
+                                    audioGraphService.setNodeEnabled(nodeID: plugin.nodeID, enabled: newState) { success in
+                                        if success {
+                                            print("✅ 插件状态已更新: \(plugin.pluginName) -> \(newState ? "启用" : "禁用")")
+                                        } else {
+                                            print("❌ 插件状态更新失败: \(plugin.pluginName)")
+                                        }
+                                    }
                                 }) {
                                     Image(systemName: plugin.isEnabled ? "power.circle.fill" : "power.circle")
                                         .font(.caption)
@@ -365,10 +372,38 @@ struct AudioMixerView: View {
                                         .frame(width: 24, height: 24)
                                 }
                                 .buttonStyle(.plain)
+                                .help("插件参数")
+
+                                // 编辑器按钮
+                                Button(action: {
+                                    if audioGraphService.nodeHasEditor(nodeID: plugin.nodeID) {
+                                        let success = audioGraphService.showNodeEditor(nodeID: plugin.nodeID)
+                                        if !success {
+                                            print("❌ 无法显示插件编辑器: \(plugin.pluginName)")
+                                        } else {
+                                            print("✅ 显示插件编辑器: \(plugin.pluginName)")
+                                        }
+                                    } else {
+                                        print("ℹ️ 插件没有编辑器界面: \(plugin.pluginName)")
+                                    }
+                                }) {
+                                    Image(systemName: "slider.horizontal.3")
+                                        .font(.caption)
+                                        .foregroundColor(.blue)
+                                        .frame(width: 24, height: 24)
+                                }
+                                .buttonStyle(.plain)
+                                .help("插件编辑器")
 
                                 // 删除按钮
                                 Button(action: {
-                                    _ = audioGraphService.removeNode(nodeID: plugin.nodeID)
+                                    audioGraphService.removeNode(nodeID: plugin.nodeID) { success in
+                                        if success {
+                                            print("✅ 成功移除插件: \(plugin.pluginName)")
+                                        } else {
+                                            print("❌ 移除插件失败: \(plugin.pluginName)")
+                                        }
+                                    }
                                 }) {
                                     Image(systemName: "xmark")
                                         .font(.caption)
@@ -753,6 +788,23 @@ struct AudioMixerView: View {
         }
     }
 
+    // MARK: - 计算属性
+
+    /// 过滤掉IO节点，只显示真实的插件
+    private var actualPlugins: [NodeInfo] {
+        return audioGraphService.loadedPlugins.filter { plugin in
+            // 过滤掉系统IO节点
+            !plugin.pluginName.contains("Audio Input") &&
+            !plugin.pluginName.contains("Audio Output") &&
+            !plugin.pluginName.contains("MIDI Input") &&
+            !plugin.pluginName.contains("MIDI Output") &&
+            !plugin.name.contains("Audio Input") &&
+            !plugin.name.contains("Audio Output") &&
+            !plugin.name.contains("MIDI Input") &&
+            !plugin.name.contains("MIDI Output")
+        }
+    }
+
     // MARK: - 拖拽重新排序
 
     /// 处理VST插件的拖拽重新排序（SwiftUI List版本）
@@ -769,7 +821,7 @@ struct AudioMixerView: View {
     private func handlePluginMove(from sourceIndex: Int, to destinationIndex: Int) {
         print("🔄 拖拽移动插件: from \(sourceIndex) to \(destinationIndex)")
 
-        let loadedPlugins = audioGraphService.loadedPlugins
+        let loadedPlugins = actualPlugins
 
         // 检查索引有效性
         guard sourceIndex >= 0 && sourceIndex < loadedPlugins.count &&

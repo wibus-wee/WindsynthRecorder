@@ -149,19 +149,56 @@ void GraphAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     updatePerformanceStats(processingTimeMs);
 }
 
-void GraphAudioProcessor::processBlock(juce::AudioBuffer<double>& buffer, 
+void GraphAudioProcessor::processBlock(juce::AudioBuffer<double>& buffer,
                                      juce::MidiBuffer& midiMessages) {
     if (!isGraphReady()) {
         buffer.clear();
         return;
     }
-    
+
     // 记录处理开始时间
     auto startTime = juce::Time::getHighResolutionTicks();
-    
+
     // 处理音频图
     audioGraph.processBlock(buffer, midiMessages);
-    
+
+    // 计算处理时间并更新统计
+    auto endTime = juce::Time::getHighResolutionTicks();
+    double processingTimeMs = juce::Time::highResolutionTicksToSeconds(endTime - startTime) * 1000.0;
+    updatePerformanceStats(processingTimeMs);
+}
+
+void GraphAudioProcessor::processBlockWithInput(const juce::AudioBuffer<float>& inputBuffer,
+                                               juce::AudioBuffer<float>& outputBuffer,
+                                               juce::MidiBuffer& midiMessages) {
+    if (!isGraphReady()) {
+        outputBuffer.clear();
+        return;
+    }
+
+    // 记录处理开始时间
+    auto startTime = juce::Time::getHighResolutionTicks();
+
+    // 创建一个临时缓冲区来处理音频图
+    // 音频图需要一个可读写的缓冲区，但我们不希望直接修改输入
+    juce::AudioBuffer<float> processingBuffer;
+
+    // 设置处理缓冲区的大小以匹配输出
+    processingBuffer.setSize(outputBuffer.getNumChannels(), outputBuffer.getNumSamples());
+    processingBuffer.clear();
+
+    // 将输入数据复制到处理缓冲区（仅用于音频图内部处理）
+    int channelsToCopy = std::min(inputBuffer.getNumChannels(), processingBuffer.getNumChannels());
+    for (int ch = 0; ch < channelsToCopy; ++ch) {
+        processingBuffer.copyFrom(ch, 0, inputBuffer, ch, 0, inputBuffer.getNumSamples());
+    }
+
+    // 处理音频图
+    audioGraph.processBlock(processingBuffer, midiMessages);
+
+    // 将处理结果复制到输出缓冲区
+    outputBuffer.makeCopyOf(processingBuffer);
+
     // 计算处理时间并更新统计
     auto endTime = juce::Time::getHighResolutionTicks();
     double processingTimeMs = juce::Time::highResolutionTicksToSeconds(endTime - startTime) * 1000.0;
@@ -197,24 +234,26 @@ void GraphAudioProcessor::audioDeviceIOCallbackWithContext(const float* const* i
                                                           int numOutputChannels,
                                                           int numSamples,
                                                           const juce::AudioIODeviceCallbackContext& context) {
-    // 创建音频缓冲区
-    juce::AudioBuffer<float> buffer(outputChannelData, numOutputChannels, numSamples);
+    // 创建输入和输出缓冲区
+    juce::AudioBuffer<float> inputBuffer;
+    juce::AudioBuffer<float> outputBuffer(outputChannelData, numOutputChannels, numSamples);
     juce::MidiBuffer midiBuffer;
 
     // 清空输出缓冲区
-    buffer.clear();
+    outputBuffer.clear();
 
-    // 如果有输入，复制到输出缓冲区
+    // 如果有输入，创建输入缓冲区（只读）
     if (inputChannelData != nullptr && numInputChannels > 0) {
-        for (int channel = 0; channel < std::min(numInputChannels, numOutputChannels); ++channel) {
-            if (inputChannelData[channel] != nullptr) {
-                buffer.copyFrom(channel, 0, inputChannelData[channel], numSamples);
-            }
-        }
-    }
+        // 创建输入缓冲区的只读视图
+        inputBuffer = juce::AudioBuffer<float>(const_cast<float**>(inputChannelData), numInputChannels, numSamples);
 
-    // 处理音频
-    processBlock(buffer, midiBuffer);
+        // 将输入数据提供给音频图处理
+        // 注意：这里不直接复制到输出，而是让音频图决定如何处理
+        processBlockWithInput(inputBuffer, outputBuffer, midiBuffer);
+    } else {
+        // 没有输入时，只处理输出
+        processBlock(outputBuffer, midiBuffer);
+    }
 }
 
 void GraphAudioProcessor::audioDeviceAboutToStart(juce::AudioIODevice* device) {
@@ -521,6 +560,59 @@ void GraphAudioProcessor::createDefaultPassthroughConnections() {
     std::cout << "[GraphAudioProcessor] 默认直通连接创建完成" << std::endl;
 }
 
+void GraphAudioProcessor::autoConnectPluginToAudioPath(NodeID pluginNodeID) {
+    std::cout << "[GraphAudioProcessor] 自动连接插件到音频路径：" << pluginNodeID.uid << std::endl;
+
+    // 获取插件信息
+    auto pluginInfo = getNodeInfo(pluginNodeID);
+    if (pluginInfo.nodeID.uid == 0) {
+        std::cout << "[GraphAudioProcessor] 插件节点无效" << std::endl;
+        return;
+    }
+
+    std::cout << "[GraphAudioProcessor] 插件信息 - 输入通道: " << pluginInfo.numInputChannels
+              << ", 输出通道: " << pluginInfo.numOutputChannels << std::endl;
+
+    // 如果插件有音频输入输出，将其插入到音频路径中
+    if (pluginInfo.numInputChannels > 0 && pluginInfo.numOutputChannels > 0) {
+        // 断开现有的直通连接
+        std::cout << "[GraphAudioProcessor] 断开现有的直通连接" << std::endl;
+        auto connections = getAllConnections();
+        for (const auto& connInfo : connections) {
+            const auto& conn = connInfo.connection;
+            // 查找输入到输出的直通连接
+            if (conn.source.nodeID == audioInputNodeID &&
+                conn.destination.nodeID == audioOutputNodeID &&
+                conn.source.channelIndex != juce::AudioProcessorGraph::midiChannelIndex) {
+                audioGraph.removeConnection(conn);
+                std::cout << "[GraphAudioProcessor] 已断开直通连接：通道 " << conn.source.channelIndex << std::endl;
+            }
+        }
+
+        // 连接：音频输入 → 插件 → 音频输出
+        int maxInputChannels = std::min(2, pluginInfo.numInputChannels);  // 最多连接立体声
+        int maxOutputChannels = std::min(2, pluginInfo.numOutputChannels);
+
+        std::cout << "[GraphAudioProcessor] 连接音频输入到插件" << std::endl;
+        for (int ch = 0; ch < maxInputChannels; ++ch) {
+            if (connectAudio(audioInputNodeID, ch, pluginNodeID, ch)) {
+                std::cout << "[GraphAudioProcessor] 已连接输入通道 " << ch << " 到插件" << std::endl;
+            }
+        }
+
+        std::cout << "[GraphAudioProcessor] 连接插件到音频输出" << std::endl;
+        for (int ch = 0; ch < maxOutputChannels; ++ch) {
+            if (connectAudio(pluginNodeID, ch, audioOutputNodeID, ch)) {
+                std::cout << "[GraphAudioProcessor] 已连接插件通道 " << ch << " 到输出" << std::endl;
+            }
+        }
+
+        std::cout << "[GraphAudioProcessor] 插件已成功插入音频路径" << std::endl;
+    } else {
+        std::cout << "[GraphAudioProcessor] 插件没有音频输入输出，跳过音频连接" << std::endl;
+    }
+}
+
 void GraphAudioProcessor::updateGraphChannelConfiguration(const GraphConfig& config) {
     std::cout << "[GraphAudioProcessor] 更新音频图通道配置" << std::endl;
 
@@ -650,6 +742,9 @@ NodeID GraphAudioProcessor::addPlugin(std::unique_ptr<juce::AudioPluginInstance>
             node->getProcessor()->prepareToPlay(currentConfig.sampleRate,
                                                currentConfig.samplesPerBlock);
         }
+
+        // 自动将插件连接到音频路径
+        autoConnectPluginToAudioPath(node->nodeID);
 
         notifyStateChange("插件已添加：" + pluginName);
         return node->nodeID;

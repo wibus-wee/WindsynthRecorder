@@ -13,6 +13,41 @@
 namespace WindsynthVST::AudioGraph {
 
 //==============================================================================
+// 自定义编辑器窗口类，支持正确的关闭行为
+//==============================================================================
+
+class PluginEditorWindow : public juce::DocumentWindow {
+public:
+    PluginEditorWindow(const juce::String& name, NodeID nodeID, PluginManager* manager)
+        : DocumentWindow(name, juce::Colours::lightgrey, DocumentWindow::allButtons)
+        , pluginNodeID(nodeID)
+        , pluginManager(manager)
+    {
+        setUsingNativeTitleBar(true);
+    }
+
+    void closeButtonPressed() override {
+        std::cout << "[PluginEditorWindow] 关闭按钮被按下，节点ID: " << pluginNodeID.uid << std::endl;
+
+        // 通知插件管理器关闭这个编辑器
+        if (pluginManager) {
+            pluginManager->hideEditor(pluginNodeID);
+        }
+    }
+
+    void userTriedToCloseWindow() override {
+        std::cout << "[PluginEditorWindow] 用户尝试关闭窗口，节点ID: " << pluginNodeID.uid << std::endl;
+        closeButtonPressed();
+    }
+
+private:
+    NodeID pluginNodeID;
+    PluginManager* pluginManager;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PluginEditorWindow)
+};
+
+//==============================================================================
 // 构造函数和析构函数
 //==============================================================================
 
@@ -102,7 +137,10 @@ bool PluginManager::removePlugin(NodeID nodeID) {
             std::lock_guard<std::mutex> lock(performanceMutex);
             cpuUsageMap.erase(nodeID);
         }
-        
+
+        // 清理编辑器窗口
+        hideEditor(nodeID);
+
         notifyPluginRemoved(nodeID);
     }
     
@@ -285,6 +323,98 @@ bool PluginManager::resetParametersToDefault(NodeID nodeID) {
     }
 
     return true;
+}
+
+//==============================================================================
+// 编辑器窗口管理实现
+//==============================================================================
+
+bool PluginManager::showEditor(NodeID nodeID) {
+    std::cout << "[PluginManager] 显示插件编辑器：" << nodeID.uid << std::endl;
+
+    auto* instance = getPluginInstance(nodeID);
+    if (!instance) {
+        std::cout << "[PluginManager] 插件实例不存在：" << nodeID.uid << std::endl;
+        return false;
+    }
+
+    if (!instance->hasEditor()) {
+        std::cout << "[PluginManager] 插件没有编辑器界面：" << nodeID.uid << std::endl;
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(editorsMutex);
+
+    // 检查是否已经有窗口
+    auto it = editorWindows.find(nodeID);
+    if (it != editorWindows.end() && it->second) {
+        // 窗口已存在，将其置于前台
+        it->second->toFront(true);
+        return true;
+    }
+
+    // 创建编辑器
+    auto* editor = instance->createEditor();
+    if (!editor) {
+        std::cout << "[PluginManager] 无法创建编辑器：" << nodeID.uid << std::endl;
+        return false;
+    }
+
+    // 在主线程中创建窗口
+    juce::MessageManager::callAsync([this, nodeID, editor]() {
+        std::lock_guard<std::mutex> editorLock(editorsMutex);
+
+        auto window = std::make_unique<juce::DocumentWindow>(
+            editor->getName(),
+            juce::Colours::lightgrey,
+            juce::DocumentWindow::allButtons
+        );
+
+        window->setContentOwned(editor, true);
+        window->setResizable(true, false);
+        window->centreWithSize(editor->getWidth(), editor->getHeight());
+
+        // 设置窗口属性
+        window->setUsingNativeTitleBar(true);
+
+        // 显示窗口
+        window->setVisible(true);
+        window->toFront(true);
+
+        // 存储窗口
+        editorWindows[nodeID] = std::move(window);
+
+        std::cout << "[PluginManager] 编辑器窗口已创建：" << nodeID.uid << std::endl;
+    });
+
+    return true;
+}
+
+bool PluginManager::hideEditor(NodeID nodeID) {
+    std::cout << "[PluginManager] 隐藏插件编辑器：" << nodeID.uid << std::endl;
+
+    std::lock_guard<std::mutex> lock(editorsMutex);
+
+    auto it = editorWindows.find(nodeID);
+    if (it != editorWindows.end() && it->second) {
+        // 在主线程中关闭窗口
+        juce::MessageManager::callAsync([window = std::move(it->second)]() mutable {
+            window.reset();
+        });
+
+        editorWindows.erase(it);
+        std::cout << "[PluginManager] 编辑器窗口已关闭：" << nodeID.uid << std::endl;
+        return true;
+    }
+
+    return false;
+}
+
+bool PluginManager::isEditorVisible(NodeID nodeID) const {
+    std::lock_guard<std::mutex> lock(editorsMutex);
+
+    auto it = editorWindows.find(nodeID);
+    return it != editorWindows.end() && it->second && it->second->isVisible();
 }
 
 //==============================================================================

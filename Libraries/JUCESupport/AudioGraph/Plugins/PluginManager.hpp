@@ -220,7 +220,32 @@ public:
      * @return 成功返回true
      */
     bool resetParametersToDefault(NodeID nodeID);
-    
+
+    //==============================================================================
+    // 编辑器窗口管理
+    //==============================================================================
+
+    /**
+     * 显示插件编辑器
+     * @param nodeID 节点ID
+     * @return 成功返回true
+     */
+    bool showEditor(NodeID nodeID);
+
+    /**
+     * 隐藏插件编辑器
+     * @param nodeID 节点ID
+     * @return 成功返回true
+     */
+    bool hideEditor(NodeID nodeID);
+
+    /**
+     * 检查编辑器是否可见
+     * @param nodeID 节点ID
+     * @return 可见返回true
+     */
+    bool isEditorVisible(NodeID nodeID) const;
+
     //==============================================================================
     // 插件预设管理
     //==============================================================================
@@ -382,6 +407,10 @@ private:
     // 性能监控
     mutable std::mutex performanceMutex;
     std::unordered_map<NodeID, double> cpuUsageMap;
+
+    // 编辑器窗口管理
+    mutable std::mutex editorsMutex;
+    std::unordered_map<NodeID, std::unique_ptr<juce::DocumentWindow>> editorWindows;
     
     // 回调函数
     PluginLoadedCallback pluginLoadedCallback;

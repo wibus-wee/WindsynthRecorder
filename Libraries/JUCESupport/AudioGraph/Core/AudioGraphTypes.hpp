@@ -36,7 +36,7 @@ using NodeAndChannel = juce::AudioProcessorGraph::NodeAndChannel;
 struct GraphConfig {
     double sampleRate = 44100.0;
     int samplesPerBlock = 512;
-    int numInputChannels = 2;
+    int numInputChannels = 0;
     int numOutputChannels = 2;
     bool enableMidi = true;
     bool enableLatencyCompensation = true;

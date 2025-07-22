@@ -44,7 +44,7 @@ enum class EngineState {
 struct EngineConfig {
     double sampleRate = 44100.0;
     int bufferSize = 512;
-    int numInputChannels = 2;
+    int numInputChannels = 0;
     int numOutputChannels = 2;
     bool enableRealtimeProcessing = true;
     std::string audioDeviceName;

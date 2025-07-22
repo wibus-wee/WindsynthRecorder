@@ -204,11 +204,11 @@ class AudioGraphService: ObservableObject {
     static let shared = AudioGraphService()
 
     private init() {
-        // 初始化默认配置
+        // 初始化默认配置 - 使用48kHz以匹配现代音频设备
         self.currentConfiguration = EngineConfiguration(
-            sampleRate: 44100.0,
+            sampleRate: 48000.0,
             bufferSize: 512,
-            numInputChannels: 2,
+            numInputChannels: 2,  // 录音应用需要立体声输入
             numOutputChannels: 2,
             enableRealtimeProcessing: true,
             audioDeviceName: ""

@@ -68,9 +68,9 @@ public:
      * I/O配置
      */
     struct IOConfiguration {
-        int numInputChannels = 2;
+        int numInputChannels = 0;  // 录音应用需要立体声输入
         int numOutputChannels = 2;
-        double sampleRate = 44100.0;
+        double sampleRate = 48000.0;  // 使用48kHz匹配现代音频设备
         int bufferSize = 512;
         std::vector<ChannelMapping> inputMappings;
         std::vector<ChannelMapping> outputMappings;
@@ -133,8 +133,8 @@ public:
      * @param bufferSize 缓冲区大小
      * @return 成功返回true
      */
-    bool setAudioDevice(const std::string& deviceName, 
-                       double sampleRate = 44100.0, 
+    bool setAudioDevice(const std::string& deviceName,
+                       double sampleRate = 48000.0,
                        int bufferSize = 512);
     
     /**

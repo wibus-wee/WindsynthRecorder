@@ -106,7 +106,7 @@ juce::PluginDescription AudioGraphTestUtils::createTestPluginDescription(const j
     desc.lastInfoUpdateTime = juce::Time::getCurrentTime();
     desc.uniqueId = name.hashCode();
     desc.isInstrument = false;
-    desc.numInputChannels = 2;
+    desc.numInputChannels = 0;
     desc.numOutputChannels = 2;
 
     return desc;

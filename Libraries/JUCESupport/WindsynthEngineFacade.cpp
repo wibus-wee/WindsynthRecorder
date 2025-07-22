@@ -625,27 +625,16 @@ bool WindsynthEngineFacade::showNodeEditor(uint32_t nodeID) {
             return false;
         }
 
-        // 创建一个简单的窗口来承载编辑器
-        // 注意：这里需要在主线程中执行
-        juce::MessageManager::callAsync([editor]() {
-            auto window = std::make_unique<juce::DocumentWindow>(
-                "Plugin Editor",
-                juce::Colours::lightgrey,
-                juce::DocumentWindow::allButtons
-            );
+        // 通过插件管理器显示编辑器
+        if (pluginManager) {
+            bool success = pluginManager->showEditor(graphNodeID);
+            if (success) {
+                std::cout << "[WindsynthEngineFacade] 节点编辑器已显示: " << nodeID << std::endl;
+            }
+            return success;
+        }
 
-            window->setContentOwned(editor, true);
-            window->setResizable(true, false);
-            window->centreWithSize(editor->getWidth(), editor->getHeight());
-            window->setVisible(true);
-
-            // 注意：这里需要管理窗口的生命周期
-            // 在实际实现中，应该将窗口存储在某个容器中
-            window.release(); // 暂时释放所有权，实际应该妥善管理
-        });
-
-        std::cout << "[WindsynthEngineFacade] 节点编辑器已显示: " << nodeID << std::endl;
-        return true;
+        return false;
     } catch (const std::exception& e) {
         std::cerr << "[WindsynthEngineFacade] 显示节点编辑器失败: " << e.what() << std::endl;
         return false;
@@ -653,11 +642,23 @@ bool WindsynthEngineFacade::showNodeEditor(uint32_t nodeID) {
 }
 
 bool WindsynthEngineFacade::hideNodeEditor(uint32_t nodeID) {
+    if (currentState.load() == EngineState::Stopped) {
+        return false;
+    }
+
     try {
-        // TODO: 实现隐藏编辑器的逻辑
-        // 需要跟踪已打开的编辑器窗口
-        std::cout << "[WindsynthEngineFacade] 隐藏节点编辑器: " << nodeID << std::endl;
-        return true;
+        AudioGraph::NodeID graphNodeID = convertToNodeID(nodeID);
+
+        // 通过插件管理器隐藏编辑器
+        if (pluginManager) {
+            bool success = pluginManager->hideEditor(graphNodeID);
+            if (success) {
+                std::cout << "[WindsynthEngineFacade] 节点编辑器已隐藏: " << nodeID << std::endl;
+            }
+            return success;
+        }
+
+        return false;
     } catch (const std::exception& e) {
         std::cerr << "[WindsynthEngineFacade] 隐藏节点编辑器失败: " << e.what() << std::endl;
         return false;
@@ -665,9 +666,18 @@ bool WindsynthEngineFacade::hideNodeEditor(uint32_t nodeID) {
 }
 
 bool WindsynthEngineFacade::isNodeEditorVisible(uint32_t nodeID) const {
+    if (currentState.load() == EngineState::Stopped) {
+        return false;
+    }
+
     try {
-        // TODO: 实现检查编辑器可见性的逻辑
-        // 需要跟踪已打开的编辑器窗口
+        AudioGraph::NodeID graphNodeID = convertToNodeID(nodeID);
+
+        // 检查插件管理器中是否有该节点的编辑器窗口
+        if (pluginManager) {
+            return pluginManager->isEditorVisible(graphNodeID);
+        }
+
         return false;
     } catch (const std::exception& e) {
         std::cerr << "[WindsynthEngineFacade] 检查节点编辑器可见性失败: " << e.what() << std::endl;

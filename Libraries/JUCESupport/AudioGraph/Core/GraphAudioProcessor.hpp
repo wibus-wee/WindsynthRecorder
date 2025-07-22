@@ -58,6 +58,13 @@ public:
     void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages) override;
     void processBlock(juce::AudioBuffer<double>& buffer, juce::MidiBuffer& midiMessages) override;
     bool supportsDoublePrecisionProcessing() const override;
+
+    /**
+     * 处理带有独立输入输出缓冲区的音频块
+     */
+    void processBlockWithInput(const juce::AudioBuffer<float>& inputBuffer,
+                              juce::AudioBuffer<float>& outputBuffer,
+                              juce::MidiBuffer& midiMessages);
     
     void reset() override;
     void setNonRealtime(bool isNonRealtime) noexcept override;
@@ -313,6 +320,11 @@ private:
      * 创建默认的直通连接（输入到输出）
      */
     void createDefaultPassthroughConnections();
+
+    /**
+     * 自动将插件连接到音频路径
+     */
+    void autoConnectPluginToAudioPath(NodeID pluginNodeID);
 
     /**
      * 更新音频图的通道配置

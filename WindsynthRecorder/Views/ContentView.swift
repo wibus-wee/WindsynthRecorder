@@ -4,7 +4,7 @@ struct ContentView: View {
     @StateObject private var audioDeviceManager = AudioDeviceManager.shared
     @StateObject private var audioRecorder = AudioRecorder.shared
     @StateObject private var notificationManager = NotificationManager.shared
-    @StateObject private var vstManager = VSTManagerExample.shared
+    @StateObject private var audioGraphService = AudioGraphService.shared
 
     // MARK: - Window Management
     @EnvironmentObject private var windowManager: WindowManager
@@ -183,29 +183,29 @@ struct ContentView: View {
                         openWindow(id: WindowManager.WindowConfig.vstManager.id)
                     }) {
                         HStack(spacing: 4) {
-                            Image(systemName: vstManager.hasLoadedPlugins ? "music.note.list" : "music.note.list")
+                            Image(systemName: !audioGraphService.loadedPlugins.isEmpty ? "music.note.list" : "music.note.list")
                                 .font(.system(size: 12, weight: .medium))
                             Text("VST 插件")
                                 .font(.system(size: 11, weight: .medium))
 
                             // 显示已加载插件数量（绿色）或可用插件数量（蓝色）
-                            if vstManager.hasLoadedPlugins {
-                                Text("(\(vstManager.loadedPlugins.count))")
+                            if !audioGraphService.loadedPlugins.isEmpty {
+                                Text("(\(audioGraphService.loadedPlugins.count))")
                                     .font(.system(size: 10, weight: .bold))
                                     .foregroundStyle(.green)
-                            } else if !vstManager.availablePlugins.isEmpty {
-                                Text("(\(vstManager.availablePlugins.count))")
+                            } else if !audioGraphService.availablePlugins.isEmpty {
+                                Text("(\(audioGraphService.availablePlugins.count))")
                                     .font(.system(size: 10, weight: .bold))
                                     .foregroundStyle(.blue)
                             }
                         }
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(vstManager.hasLoadedPlugins ? Color.green.opacity(0.1) : (!vstManager.availablePlugins.isEmpty ? Color.blue.opacity(0.1) : Color.gray.opacity(0.1)), in: RoundedRectangle(cornerRadius: 4))
-                        .foregroundStyle(vstManager.hasLoadedPlugins ? .green : (!vstManager.availablePlugins.isEmpty ? .blue : .gray))
+                        .background(!audioGraphService.loadedPlugins.isEmpty ? Color.green.opacity(0.1) : (!audioGraphService.availablePlugins.isEmpty ? Color.blue.opacity(0.1) : Color.gray.opacity(0.1)), in: RoundedRectangle(cornerRadius: 4))
+                        .foregroundStyle(!audioGraphService.loadedPlugins.isEmpty ? .green : (!audioGraphService.availablePlugins.isEmpty ? .blue : .gray))
                     }
                     .buttonStyle(.plain)
-                    .help(vstManager.hasLoadedPlugins ? "VST 插件处理器 - \(vstManager.processingChainStatus)" : (!vstManager.availablePlugins.isEmpty ? "VST 插件处理器 - 发现 \(vstManager.availablePlugins.count) 个可用插件" : "VST 插件处理器"))
+                    .help(!audioGraphService.loadedPlugins.isEmpty ? "VST 插件处理器 - 已加载 \(audioGraphService.loadedPlugins.count) 个插件" : (!audioGraphService.availablePlugins.isEmpty ? "VST 插件处理器 - 发现 \(audioGraphService.availablePlugins.count) 个可用插件" : "VST 插件处理器"))
 
                     // 音频混音台按钮
                     Button(action: {

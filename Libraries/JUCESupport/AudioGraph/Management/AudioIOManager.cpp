@@ -617,7 +617,8 @@ void AudioIOManager::initializeDeviceManager() {
     std::cout << "[AudioIOManager] 初始化设备管理器" << std::endl;
 
     deviceManager = std::make_unique<juce::AudioDeviceManager>();
-    deviceManager->initialiseWithDefaultDevices(2, 2);
+    // deviceManager->initialiseWithDefaultDevices(2, 2);
+    deviceManager->initialiseWithDefaultDevices(0, 2); // 0 input channels
 
     // 设置默认设备信息
     auto* currentAudioDevice = deviceManager->getCurrentAudioDevice();

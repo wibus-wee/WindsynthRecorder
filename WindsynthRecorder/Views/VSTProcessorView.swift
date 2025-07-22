@@ -10,7 +10,7 @@ import SwiftUI
 
 /// VST 插件管理器 - 专业版本
 struct VSTProcessorView: View {
-    @StateObject private var vstManager = VSTManagerExample.shared
+    @StateObject private var audioGraphService = AudioGraphService.shared
     @State private var selectedCategory: String = "全部"
     @State private var searchText: String = ""
     @State private var showingOnlyEnabled: Bool = false
@@ -52,12 +52,12 @@ struct VSTProcessorView: View {
             // 视图出现时自动获取插件列表
             DispatchQueue.main.async {
                 // 如果还没有扫描过插件，自动开始扫描
-                if vstManager.availablePlugins.isEmpty && !vstManager.isScanning {
+                if audioGraphService.availablePlugins.isEmpty && !audioGraphService.isScanning {
                     print("🔍 自动扫描 VST 插件...")
-                    vstManager.scanForPlugins()
+                    let _ = audioGraphService.scanPlugins(searchPaths: ["/Library/Audio/Plug-Ins/VST3", "~/Library/Audio/Plug-Ins/VST3"])
                 } else {
                     // 如果已有插件列表，只刷新UI
-                    vstManager.objectWillChange.send()
+                    audioGraphService.objectWillChange.send()
                 }
             }
         }
@@ -69,16 +69,16 @@ struct VSTProcessorView: View {
         HStack(spacing: 12) {
             // 扫描按钮
             Button(action: {
-                vstManager.scanForPlugins()
+                let _ = audioGraphService.scanPlugins(searchPaths: ["/Library/Audio/Plug-Ins/VST3", "~/Library/Audio/Plug-Ins/VST3"])
             }) {
                 HStack(spacing: 4) {
-                    Image(systemName: vstManager.isScanning ? "arrow.clockwise" : "magnifyingglass")
-                        .rotationEffect(.degrees(vstManager.isScanning ? 360 : 0))
-                        .animation(vstManager.isScanning ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: vstManager.isScanning)
-                    Text(vstManager.isScanning ? "扫描中..." : "扫描插件")
+                    Image(systemName: audioGraphService.isScanning ? "arrow.clockwise" : "magnifyingglass")
+                        .rotationEffect(.degrees(audioGraphService.isScanning ? 360 : 0))
+                        .animation(audioGraphService.isScanning ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: audioGraphService.isScanning)
+                    Text(audioGraphService.isScanning ? "扫描中..." : "扫描插件")
                 }
             }
-            .disabled(vstManager.isScanning)
+            .disabled(audioGraphService.isScanning)
             .buttonStyle(.bordered)
 
             Divider()
@@ -137,7 +137,7 @@ struct VSTProcessorView: View {
                 LazyVStack(alignment: .leading, spacing: 2) {
                     CategoryRowView(
                         name: "全部",
-                        count: vstManager.availablePlugins.count,
+                        count: audioGraphService.availablePlugins.count,
                         isSelected: selectedCategory == "全部"
                     ) {
                         selectedCategory = "全部"
@@ -223,7 +223,7 @@ struct VSTProcessorView: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 80, alignment: .leading)
 
-            Text("版本")
+            Text("文件")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
                 .frame(width: 60, alignment: .leading)
@@ -243,10 +243,10 @@ struct VSTProcessorView: View {
     private var pluginTableView: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                ForEach(Array(filteredPlugins.enumerated()), id: \.element.fileOrIdentifier) { index, plugin in
+                ForEach(Array(filteredPlugins.enumerated()), id: \.element.identifier) { index, plugin in
                     ProfessionalPluginRowView(
                         plugin: plugin,
-                        vstManager: vstManager,
+                        audioGraphService: audioGraphService,
                         isEven: index % 2 == 0
                     )
                 }
@@ -260,23 +260,23 @@ struct VSTProcessorView: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
 
-            Text(vstManager.availablePlugins.isEmpty ? "暂无插件" : "无匹配结果")
+            Text(audioGraphService.availablePlugins.isEmpty ? "暂无插件" : "无匹配结果")
                 .font(.headline)
                 .foregroundStyle(.secondary)
 
-            Text(vstManager.availablePlugins.isEmpty ?
+            Text(audioGraphService.availablePlugins.isEmpty ?
                  "点击\"扫描插件\"来查找系统中的VST插件" :
                  "尝试调整搜索条件或选择其他类别")
                 .font(.subheadline)
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
 
-            if vstManager.availablePlugins.isEmpty {
+            if audioGraphService.availablePlugins.isEmpty {
                 Button("扫描插件") {
-                    vstManager.scanForPlugins()
+                    let _ = audioGraphService.scanPlugins(searchPaths: ["/Library/Audio/Plug-Ins/VST3", "~/Library/Audio/Plug-Ins/VST3"])
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(vstManager.isScanning)
+                .disabled(audioGraphService.isScanning)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -286,7 +286,7 @@ struct VSTProcessorView: View {
     private var statusBarSection: some View {
         HStack {
             HStack(spacing: 16) {
-                Text("总计: \(vstManager.availablePlugins.count) 个插件")
+                Text("总计: \(audioGraphService.availablePlugins.count) 个插件")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
 
@@ -294,24 +294,24 @@ struct VSTProcessorView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
 
-                Text("已加载: \(vstManager.loadedPlugins.count) 个")
+                Text("已加载: \(audioGraphService.loadedPlugins.count) 个")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
 
             Spacer()
 
-            if vstManager.isScanning {
+            if audioGraphService.isScanning {
                 HStack(spacing: 8) {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle())
                         .scaleEffect(0.7)
 
-                    Text("扫描进度: \(Int(vstManager.scanProgress * 100))%")
+                    Text("扫描进度: \(Int(audioGraphService.scanProgress * 100))%")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
-            } else if let error = vstManager.errorMessage {
+            } else if let error = audioGraphService.errorMessage {
                 Text("错误: \(error)")
                     .font(.system(size: 11))
                     .foregroundStyle(.red)
@@ -328,8 +328,8 @@ struct VSTProcessorView: View {
 
     // MARK: - 计算属性
 
-    private var filteredPlugins: [VSTPluginInfo] {
-        var plugins = vstManager.availablePlugins
+    private var filteredPlugins: [PluginDescription] {
+        var plugins = audioGraphService.availablePlugins
 
         // 按类别过滤
         if selectedCategory != "全部" {
@@ -347,7 +347,7 @@ struct VSTProcessorView: View {
         // 按启用状态过滤
         if showingOnlyEnabled {
             plugins = plugins.filter { plugin in
-                vstManager.loadedPlugins.contains(plugin.fileOrIdentifier)
+                audioGraphService.loadedPlugins.contains { $0.pluginName == plugin.name }
             }
         }
 
@@ -360,36 +360,34 @@ struct VSTProcessorView: View {
         case .category:
             plugins.sort { $0.category.localizedCompare($1.category) == .orderedAscending }
         case .format:
-            plugins.sort { $0.pluginFormatName.localizedCompare($1.pluginFormatName) == .orderedAscending }
+            plugins.sort { $0.format.localizedCompare($1.format) == .orderedAscending }
         }
 
         return plugins
     }
 
     private var availableCategories: [String] {
-        let categories = Set(vstManager.availablePlugins.map { $0.category })
+        let categories = Set(audioGraphService.availablePlugins.map { $0.category })
         return Array(categories).sorted()
     }
 
     private var availableManufacturers: [String] {
-        let manufacturers = Set(vstManager.availablePlugins.map { $0.manufacturer })
+        let manufacturers = Set(audioGraphService.availablePlugins.map { $0.manufacturer })
         return Array(manufacturers).sorted()
     }
 
     private var enabledPluginsCount: Int {
-        vstManager.availablePlugins.filter { plugin in
-            vstManager.loadedPlugins.contains(plugin.fileOrIdentifier)
-        }.count
+        audioGraphService.loadedPlugins.count
     }
 
     // MARK: - 辅助方法
 
-    private func pluginsInCategory(_ category: String) -> [VSTPluginInfo] {
-        vstManager.availablePlugins.filter { $0.category == category }
+    private func pluginsInCategory(_ category: String) -> [PluginDescription] {
+        audioGraphService.availablePlugins.filter { $0.category == category }
     }
 
-    private func pluginsByManufacturer(_ manufacturer: String) -> [VSTPluginInfo] {
-        vstManager.availablePlugins.filter { $0.manufacturer == manufacturer }
+    private func pluginsByManufacturer(_ manufacturer: String) -> [PluginDescription] {
+        audioGraphService.availablePlugins.filter { $0.manufacturer == manufacturer }
     }
 }
 
@@ -451,8 +449,8 @@ struct ManufacturerRowView: View {
 
 // MARK: - 专业插件行视图
 struct ProfessionalPluginRowView: View {
-    let plugin: VSTPluginInfo
-    @ObservedObject var vstManager: VSTManagerExample
+    let plugin: PluginDescription
+    @ObservedObject var audioGraphService: AudioGraphService
     let isEven: Bool
     @State private var isHovered = false
 
@@ -487,13 +485,13 @@ struct ProfessionalPluginRowView: View {
                 .lineLimit(1)
 
             // 格式
-            Text(plugin.pluginFormatName)
+            Text(plugin.format)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.tertiary)
                 .frame(width: 80, alignment: .leading)
 
-            // 版本
-            Text(plugin.version)
+            // 文件路径（简化显示）
+            Text(plugin.filePath.split(separator: "/").last.map(String.init) ?? "")
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
                 .frame(width: 60, alignment: .leading)
@@ -564,11 +562,11 @@ struct ProfessionalPluginRowView: View {
     }
 
     private var isPluginLoaded: Bool {
-        vstManager.loadedPlugins.contains(plugin.fileOrIdentifier)
+        audioGraphService.loadedPlugins.contains { $0.pluginName == plugin.name }
     }
 
     private func loadPlugin() {
-        let success = vstManager.loadPlugin(named: plugin.fileOrIdentifier)
+        let success = audioGraphService.loadPlugin(identifier: plugin.identifier)
         if success {
             print("✅ 成功启用插件: \(plugin.name)")
         } else {
@@ -577,21 +575,20 @@ struct ProfessionalPluginRowView: View {
     }
 
     private func unloadPlugin() {
-        let success = vstManager.unloadPlugin(identifier: plugin.fileOrIdentifier)
-        if success {
-            print("✅ 成功禁用插件: \(plugin.name)")
-        } else {
-            print("❌ 禁用插件失败: \(plugin.name)")
+        // 找到对应的节点ID
+        if let nodeInfo = audioGraphService.loadedPlugins.first(where: { $0.pluginName == plugin.name }) {
+            let success = audioGraphService.removeNode(nodeID: nodeInfo.nodeID)
+            if success {
+                print("✅ 成功禁用插件: \(plugin.name)")
+            } else {
+                print("❌ 禁用插件失败: \(plugin.name)")
+            }
         }
     }
 
     private func showPluginUI() {
-        if vstManager.hasPluginEditor(identifier: plugin.fileOrIdentifier) {
-            vstManager.showPluginEditor(identifier: plugin.fileOrIdentifier)
-            print("🎛️ 打开插件界面: \(plugin.name)")
-        } else {
-            print("⚠️ 插件没有界面: \(plugin.name)")
-        }
+        // TODO: 实现插件UI显示功能
+        print("🎛️ 插件UI功能待实现: \(plugin.name)")
     }
 }
 

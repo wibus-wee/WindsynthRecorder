@@ -228,18 +228,19 @@ public:
     // 插件管理
     //==============================================================================
     
-    /**
-     * 扫描可用插件
-     * @param searchPaths 搜索路径列表
-     * @return 扫描到的插件数量
-     */
-    int scanPlugins(const std::vector<std::string>& searchPaths = {});
+    // 注意：插件扫描现在通过ModernPluginLoader异步进行，无需手动调用
     
     /**
      * 获取可用插件列表
      * @return 插件信息列表
      */
     std::vector<SimplePluginInfo> getAvailablePlugins() const;
+
+    /**
+     * 获取插件加载器引用（用于Bridge访问）
+     * @return ModernPluginLoader引用
+     */
+    AudioGraph::ModernPluginLoader& getPluginLoader() { return *pluginLoader; }
     
     /**
      * 异步加载插件

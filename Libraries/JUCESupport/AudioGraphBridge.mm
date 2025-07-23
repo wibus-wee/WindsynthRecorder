@@ -356,30 +356,73 @@ double Engine_GetDuration(WindsynthEngineHandle handle) {
 // 插件管理
 //==============================================================================
 
-int Engine_ScanPlugins(WindsynthEngineHandle handle, const char* const* searchPaths) {
+//==============================================================================
+// 插件扫描 - 统一异步API
+//==============================================================================
+
+void Engine_ScanPluginsAsync(WindsynthEngineHandle handle,
+                            bool rescanExisting,
+                            PluginScanProgressCallback_C progressCallback,
+                            PluginScanCompleteCallback_C completeCallback,
+                            void* userData) {
     auto wrapper = getEngineWrapper(handle);
     if (!wrapper) {
-        return 0;
+        return;
     }
 
     try {
-        std::vector<std::string> paths;
-
-        if (searchPaths) {
-            for (int i = 0; searchPaths[i] != nullptr; ++i) {
-                paths.push_back(std::string(searchPaths[i]));
-            }
+        // 设置回调
+        if (progressCallback) {
+            wrapper->engine->getPluginLoader().setScanProgressCallback(
+                [progressCallback, userData](float progress, const juce::String& currentFile) {
+                    progressCallback(progress, currentFile.toRawUTF8(), userData);
+                });
         }
 
-        int result = wrapper->engine->scanPlugins(paths);
+        if (completeCallback) {
+            wrapper->engine->getPluginLoader().setScanCompleteCallback(
+                [completeCallback, userData, wrapper](int foundPlugins) {
+                    // 更新可用插件列表
+                    wrapper->availablePlugins = wrapper->engine->getAvailablePlugins();
+                    completeCallback(foundPlugins, userData);
+                });
+        }
 
-        // 更新可用插件列表
-        wrapper->availablePlugins = wrapper->engine->getAvailablePlugins();
+        // 启动默认路径扫描（使用智能线程数）
+        wrapper->engine->getPluginLoader().scanDefaultPathsAsync(rescanExisting, 0);
 
-        return result;
     } catch (const std::exception& e) {
-        std::cerr << "[AudioGraphBridge] 扫描插件失败: " << e.what() << std::endl;
-        return 0;
+        std::cerr << "[AudioGraphBridge] 插件扫描失败: " << e.what() << std::endl;
+        if (completeCallback) {
+            completeCallback(0, userData);
+        }
+    }
+}
+
+void Engine_StopPluginScan(WindsynthEngineHandle handle) {
+    auto wrapper = getEngineWrapper(handle);
+    if (!wrapper) {
+        return;
+    }
+
+    try {
+        wrapper->engine->getPluginLoader().stopScanning();
+    } catch (const std::exception& e) {
+        std::cerr << "[AudioGraphBridge] 停止扫描失败: " << e.what() << std::endl;
+    }
+}
+
+bool Engine_IsScanning(WindsynthEngineHandle handle) {
+    auto wrapper = getEngineWrapper(handle);
+    if (!wrapper) {
+        return false;
+    }
+
+    try {
+        return wrapper->engine->getPluginLoader().isScanning();
+    } catch (const std::exception& e) {
+        std::cerr << "[AudioGraphBridge] 检查扫描状态失败: " << e.what() << std::endl;
+        return false;
     }
 }
 

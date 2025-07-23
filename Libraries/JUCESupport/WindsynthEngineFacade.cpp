@@ -315,38 +315,7 @@ double WindsynthEngineFacade::getDuration() const {
 // 插件管理
 //==============================================================================
 
-int WindsynthEngineFacade::scanPlugins(const std::vector<std::string>& searchPaths) {
-    std::cout << "[WindsynthEngineFacade] 扫描插件" << std::endl;
-    
-    try {
-        // 使用默认搜索路径如果没有提供
-        std::vector<std::string> paths = searchPaths;
-        if (paths.empty()) {
-            // 添加默认VST3搜索路径
-            paths.push_back("/Library/Audio/Plug-Ins/VST3");
-            paths.push_back("~/Library/Audio/Plug-Ins/VST3");
-        }
-        
-        int totalFound = 0;
-        for (const auto& path : paths) {
-            // ModernPluginLoader使用异步扫描，我们使用scanFileAsync
-            juce::File directory(path);
-            if (directory.exists()) {
-                pluginLoader->scanFileAsync(directory, false);
-                std::cout << "[WindsynthEngineFacade] 开始扫描路径: " << path << std::endl;
-                totalFound++; // 简化计数
-            }
-        }
-        
-        std::cout << "[WindsynthEngineFacade] 插件扫描完成，总共找到 " << totalFound << " 个插件" << std::endl;
-        return totalFound;
-        
-    } catch (const std::exception& e) {
-        std::string error = "插件扫描失败: " + std::string(e.what());
-        notifyError(error);
-        return 0;
-    }
-}
+// 注意：插件扫描现在通过ModernPluginLoader异步进行，此方法已移除
 
 std::vector<SimplePluginInfo> WindsynthEngineFacade::getAvailablePlugins() const {
     std::vector<SimplePluginInfo> result;

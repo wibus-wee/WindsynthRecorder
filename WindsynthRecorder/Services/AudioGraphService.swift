@@ -368,33 +368,84 @@ class AudioGraphService: ObservableObject {
         cleanup()
     }
     
-    /// 扫描可用插件
-    func scanPlugins(searchPaths: [String] = []) -> Int {
+    /// 扫描插件（统一异步方法）
+    func scanPluginsAsync(
+        rescanExisting: Bool = false,
+        progressCallback: ((Float, String) -> Void)? = nil,
+        completion: @escaping (Int) -> Void
+    ) {
         guard let handle = engineHandle else {
             errorMessage = "Audio engine not initialized"
-            return 0
+            completion(0)
+            return
         }
 
-        // 使用withCString确保内存安全
-        var count: Int32 = 0
+        logger.info("开始扫描插件", details: "重新扫描: \(rescanExisting)")
 
-        // 为每个路径创建C字符串，并确保在调用期间保持有效
-        let cStrings = searchPaths.map { $0.cString(using: .utf8) ?? [] }
+        // 更新扫描状态
+        isScanning = true
 
-        // 创建指针数组
-        cStrings.withUnsafeBufferPointer { buffer in
-            let pointers = buffer.map { $0.withUnsafeBufferPointer { UnsafePointer($0.baseAddress) } }
-            let nullTerminatedPointers = pointers + [nil]
+        // 创建回调上下文
+        let callbackContext = PluginScanCallbackContext(
+            service: self,
+            progressCallback: progressCallback,
+            completion: completion
+        )
 
-            count = Engine_ScanPlugins(handle, nullTerminatedPointers)
-        }
+        // 保存回调上下文（防止被释放）
+        let contextPointer = Unmanaged.passRetained(callbackContext).toOpaque()
 
-        // 更新可用插件列表
-        refreshAvailablePlugins()
+        Engine_ScanPluginsAsync(
+            handle,
+            rescanExisting,
+            { progress, currentFile, userData in
+                // 进度回调
+                guard let userData = userData else { return }
+                let context = Unmanaged<PluginScanCallbackContext>.fromOpaque(userData).takeUnretainedValue()
 
-        logger.info("插件扫描完成", details: "找到 \(count) 个插件")
-        return Int(count)
+                DispatchQueue.main.async {
+                    let fileName = currentFile != nil ? String(cString: currentFile!) : ""
+                    context.progressCallback?(progress, fileName)
+                }
+            },
+            { foundPlugins, userData in
+                // 完成回调
+                guard let userData = userData else { return }
+                let context = Unmanaged<PluginScanCallbackContext>.fromOpaque(userData).takeRetainedValue()
+
+                DispatchQueue.main.async {
+                    guard let service = context.service else { return }
+                    service.refreshAvailablePlugins()
+                    service.isScanning = false
+                    service.logger.info("插件扫描完成", details: "找到 \(foundPlugins) 个插件")
+                    context.completion(Int(foundPlugins))
+                }
+            },
+            contextPointer
+        )
     }
+
+    /// 停止插件扫描
+    func stopPluginScan() {
+        guard let handle = engineHandle else {
+            return
+        }
+
+        Engine_StopPluginScan(handle)
+        logger.info("已停止插件扫描")
+    }
+
+    /// 更新扫描状态
+    private func updateScanningStatus() {
+        guard let handle = engineHandle else {
+            isScanning = false
+            return
+        }
+
+        isScanning = Engine_IsScanning(handle)
+    }
+
+    // 注意：Dead Man's Pedal和黑名单功能已内置到扫描器中，无需手动管理
 
     /// 通过标识符加载插件（异步）
     func loadPlugin(identifier: String, displayName: String = "", completion: @escaping (Bool, String?) -> Void) {
@@ -926,22 +977,43 @@ class AudioGraphService: ObservableObject {
     }
 }
 
+// MARK: - Callback Context Classes
+
+/// 插件扫描回调上下文
+private class PluginScanCallbackContext {
+    weak var service: AudioGraphService?
+    let progressCallback: ((Float, String) -> Void)?
+    let completion: (Int) -> Void
+
+    init(service: AudioGraphService, progressCallback: ((Float, String) -> Void)?, completion: @escaping (Int) -> Void) {
+        self.service = service
+        self.progressCallback = progressCallback
+        self.completion = completion
+    }
+}
+
 // MARK: - Extensions
 
 extension AudioGraphService {
-    /// 便捷方法：通过路径加载插件
-    func loadPluginByPath(_ path: String) -> Bool {
-        // 首先扫描该路径
-        let count = scanPlugins(searchPaths: [path])
+    /// 便捷方法：异步通过路径加载插件
+    func loadPluginByPath(_ path: String, completion: @escaping (Bool) -> Void) {
+        // 注意：现在使用默认路径扫描，不支持自定义路径
+        // 如果需要特定路径，建议直接使用插件标识符
+        scanPluginsAsync { [weak self] foundPlugins in
+            guard let self = self, foundPlugins > 0 else {
+                completion(false)
+                return
+            }
 
-        if count > 0 {
             // 获取第一个找到的插件
-            if let firstPlugin = availablePlugins.first {
-                return loadPlugin(identifier: firstPlugin.identifier, displayName: firstPlugin.name)
+            if let firstPlugin = self.availablePlugins.first {
+                self.loadPlugin(identifier: firstPlugin.identifier, displayName: firstPlugin.name) { success, _ in
+                    completion(success)
+                }
+            } else {
+                completion(false)
             }
         }
-
-        return false
     }
 
     /// 便捷方法：获取输出电平

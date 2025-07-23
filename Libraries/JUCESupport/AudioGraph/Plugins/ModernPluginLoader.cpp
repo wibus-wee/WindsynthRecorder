@@ -3,7 +3,7 @@
 //  WindsynthRecorder
 //
 //  Created by AI Assistant
-//  现代插件加载器实现
+//  现代插件加载器实现 - 基于JUCE最佳实践
 //
 
 #include "ModernPluginLoader.hpp"
@@ -13,26 +13,68 @@
 namespace WindsynthVST::AudioGraph {
 
 //==============================================================================
+// 扫描作业类 - 基于JUCE AudioPluginHost实现
+//==============================================================================
+
+class ModernPluginLoader::ScanJob : public juce::ThreadPoolJob {
+public:
+    ScanJob(ModernPluginLoader& owner, juce::AudioPluginFormat& format)
+        : ThreadPoolJob("Plugin Scan"), owner_(owner), format_(format) {}
+
+    JobStatus runJob() override {
+        std::lock_guard<std::mutex> lock(owner_.scannerMutex);
+
+        if (owner_.currentScanner == nullptr || owner_.shouldStopScanning.load()) {
+            return jobHasFinished;
+        }
+
+        juce::String pluginBeingScanned;
+        bool hasMore = owner_.currentScanner->scanNextFile(true, pluginBeingScanned);
+
+        if (!pluginBeingScanned.isEmpty()) {
+            float progress = owner_.currentScanner->getProgress();
+            owner_.notifyProgress(progress, pluginBeingScanned);
+        }
+
+        return hasMore ? jobNeedsRunningAgain : jobHasFinished;
+    }
+
+private:
+    ModernPluginLoader& owner_;
+    juce::AudioPluginFormat& format_;
+};
+
+//==============================================================================
 // 构造函数和析构函数
 //==============================================================================
 
 ModernPluginLoader::ModernPluginLoader() {
-    std::cout << "[ModernPluginLoader] 初始化现代插件加载器" << std::endl;
-    
+    std::cout << "[ModernPluginLoader] 初始化现代插件加载器（基于JUCE最佳实践）" << std::endl;
+
     // 创建线程池用于异步扫描
-    scanningThreadPool = std::make_unique<juce::ThreadPool>(1);
-    
+    scanningThreadPool = std::make_unique<juce::ThreadPool>(getRecommendedThreadCount());
+
+    // 设置默认的Dead Man's Pedal文件路径
+    auto appDataDir = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory);
+    deadMansPedalFile = appDataDir.getChildFile("WindsynthRecorder").getChildFile("CrashedPlugins.txt");
+
     // 初始化默认格式
     initializeFormats();
 }
 
 ModernPluginLoader::~ModernPluginLoader() {
     std::cout << "[ModernPluginLoader] 析构插件加载器" << std::endl;
-    
+
     stopScanning();
-    
+
     if (scanningThreadPool) {
         scanningThreadPool->removeAllJobs(true, 5000);
+    }
+
+    // 清理扫描器
+    {
+        std::lock_guard<std::mutex> lock(scannerMutex);
+        currentScanner.reset();
     }
 }
 
@@ -92,46 +134,93 @@ bool ModernPluginLoader::isFormatSupported(const juce::String& formatName) const
 // 插件扫描实现
 //==============================================================================
 
-void ModernPluginLoader::scanPluginsAsync(const juce::FileSearchPath& searchPaths,
-                                         bool recursive,
-                                         bool rescanExisting) {
+void ModernPluginLoader::scanDefaultPathsAsync(bool rescanExisting, int numThreads) {
     if (scanning.load()) {
         std::cout << "[ModernPluginLoader] 已有扫描在进行中" << std::endl;
         return;
     }
-    
-    std::cout << "[ModernPluginLoader] 开始异步扫描插件" << std::endl;
-    
+
+    std::cout << "[ModernPluginLoader] 开始扫描默认路径（使用JUCE最佳实践）" << std::endl;
+
     scanning.store(true);
     shouldStopScanning.store(false);
-    
-    // 在线程池中执行扫描
-    scanningThreadPool->addJob([this, searchPaths, recursive, rescanExisting]() {
-        performScan(searchPaths, recursive, rescanExisting);
-    });
-}
 
-void ModernPluginLoader::scanDefaultPathsAsync(bool rescanExisting) {
+    // 获取默认路径
     auto defaultPaths = getDefaultSearchPaths();
-    scanPluginsAsync(defaultPaths, true, rescanExisting);
+
+    // 确定线程数
+    int actualThreads = numThreads > 0 ? numThreads : getRecommendedThreadCount();
+
+    // 为每种格式启动扫描
+    for (auto* format : formatManager.getFormats()) {
+        scanningThreadPool->addJob([this, format, defaultPaths, rescanExisting, actualThreads]() {
+            performScanWithDirectoryScanner(*format, defaultPaths, true, rescanExisting, actualThreads);
+        });
+    }
 }
 
 void ModernPluginLoader::scanFileAsync(const juce::File& fileOrDirectory, bool rescanExisting) {
+    if (scanning.load()) {
+        std::cout << "[ModernPluginLoader] 已有扫描在进行中" << std::endl;
+        return;
+    }
+
+    std::cout << "[ModernPluginLoader] 开始扫描文件/目录：" << fileOrDirectory.getFullPathName() << std::endl;
+
+    scanning.store(true);
+    shouldStopScanning.store(false);
+
     juce::FileSearchPath singlePath;
     singlePath.add(fileOrDirectory);
-    scanPluginsAsync(singlePath, false, rescanExisting);
+
+    // 为每种格式启动扫描
+    for (auto* format : formatManager.getFormats()) {
+        scanningThreadPool->addJob([this, format, singlePath, rescanExisting]() {
+            performScanWithDirectoryScanner(*format, singlePath, false, rescanExisting, 1);
+        });
+    }
 }
 
 void ModernPluginLoader::stopScanning() {
     if (scanning.load()) {
         std::cout << "[ModernPluginLoader] 停止扫描" << std::endl;
         shouldStopScanning.store(true);
-        
+
+        // 停止当前扫描器
+        {
+            std::lock_guard<std::mutex> lock(scannerMutex);
+            if (currentScanner) {
+                // PluginDirectoryScanner会在下次调用scanNextFile时检查停止标志
+            }
+        }
+
+        // 移除所有扫描作业
+        if (scanningThreadPool) {
+            scanningThreadPool->removeAllJobs(true, 1000);
+        }
+
         // 等待扫描完成
         while (scanning.load()) {
             juce::Thread::sleep(10);
         }
     }
+}
+
+bool ModernPluginLoader::isScanning() const {
+    return scanning.load();
+}
+
+//==============================================================================
+// Dead Man's Pedal 实现
+//==============================================================================
+
+void ModernPluginLoader::setDeadMansPedalFile(const juce::File& file) {
+    deadMansPedalFile = file;
+    std::cout << "[ModernPluginLoader] 设置Dead Man's Pedal文件：" << file.getFullPathName() << std::endl;
+}
+
+juce::File ModernPluginLoader::getDeadMansPedalFile() const {
+    return deadMansPedalFile;
 }
 
 //==============================================================================
@@ -377,8 +466,60 @@ std::map<juce::String, int> ModernPluginLoader::getPluginCountByFormat() const {
 // 内部方法实现
 //==============================================================================
 
-void ModernPluginLoader::performScan(const juce::FileSearchPath& paths, bool recursive, bool rescanExisting) {
-    std::cout << "[ModernPluginLoader] 开始扫描，路径数量：" << paths.getNumPaths() << std::endl;
+void ModernPluginLoader::performScanWithDirectoryScanner(juce::AudioPluginFormat& format,
+                                                       const juce::FileSearchPath& paths,
+                                                       bool recursive,
+                                                       bool rescanExisting,
+                                                       int numThreads) {
+    std::cout << "[ModernPluginLoader] 使用PluginDirectoryScanner扫描格式：" << format.getName() << std::endl;
+
+    try {
+        // 创建PluginDirectoryScanner
+        std::lock_guard<std::mutex> lock(scannerMutex);
+        currentScanner = std::make_unique<juce::PluginDirectoryScanner>(
+            knownPluginList, format, paths, recursive, deadMansPedalFile, true);
+
+        // 启动多个扫描作业
+        for (int i = 0; i < numThreads; ++i) {
+            scanningThreadPool->addJob(new ScanJob(*this, format), true);
+        }
+
+        // 等待扫描完成
+        while (currentScanner && !shouldStopScanning.load()) {
+            juce::String pluginBeingScanned;
+            bool hasMore = currentScanner->scanNextFile(false, pluginBeingScanned);
+
+            if (!hasMore) {
+                break;
+            }
+
+            if (!pluginBeingScanned.isEmpty()) {
+                float progress = currentScanner->getProgress();
+                notifyProgress(progress, pluginBeingScanned);
+            }
+
+            juce::Thread::sleep(10);
+        }
+
+        // 清理扫描器
+        currentScanner.reset();
+
+    } catch (const std::exception& e) {
+        std::cerr << "[ModernPluginLoader] 扫描异常：" << e.what() << std::endl;
+        // 回退到传统扫描方式
+        performLegacyScan(paths, recursive, rescanExisting);
+    }
+
+    scanning.store(false);
+
+    int totalPlugins = getNumKnownPlugins();
+    std::cout << "[ModernPluginLoader] 格式 " << format.getName() << " 扫描完成，总插件数：" << totalPlugins << std::endl;
+
+    notifyComplete(totalPlugins);
+}
+
+void ModernPluginLoader::performLegacyScan(const juce::FileSearchPath& paths, bool recursive, bool rescanExisting) {
+    std::cout << "[ModernPluginLoader] 使用传统扫描方式" << std::endl;
 
     int totalFilesFound = 0;
     int filesScanned = 0;
@@ -432,12 +573,7 @@ void ModernPluginLoader::performScan(const juce::FileSearchPath& paths, bool rec
         }
     }
 
-    scanning.store(false);
-
-    std::cout << "[ModernPluginLoader] 扫描完成，找到 " << pluginsFound << " 个新插件" << std::endl;
-    std::cout << "[ModernPluginLoader] 总插件数量：" << getNumKnownPlugins() << std::endl;
-
-    notifyComplete(pluginsFound);
+    std::cout << "[ModernPluginLoader] 传统扫描完成，找到 " << pluginsFound << " 个新插件" << std::endl;
 }
 
 void ModernPluginLoader::notifyProgress(float progress, const juce::String& currentFile) {
@@ -493,6 +629,20 @@ juce::FileSearchPath ModernPluginLoader::getDefaultSearchPaths() const {
     }
 
     return defaultPaths;
+}
+
+int ModernPluginLoader::getRecommendedThreadCount() const {
+    // 基于JUCE AudioPluginHost的策略
+    int numCores = juce::SystemStats::getNumCpus();
+
+    // 对于插件扫描，使用较少的线程以避免过度并发导致的问题
+    // 特别是某些插件可能不是线程安全的
+    int recommendedThreads = juce::jmax(1, juce::jmin(4, numCores / 2));
+
+    std::cout << "[ModernPluginLoader] 系统CPU核心数：" << numCores
+              << "，推荐扫描线程数：" << recommendedThreads << std::endl;
+
+    return recommendedThreads;
 }
 
 } // namespace WindsynthVST::AudioGraph

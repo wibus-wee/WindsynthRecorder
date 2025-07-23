@@ -110,6 +110,10 @@ typedef void (*EngineStateCallback_C)(EngineState_C state, const char* message, 
 typedef void (*PluginLoadCallback_C)(uint32_t nodeID, bool success, const char* error, void* userData);
 typedef void (*ErrorCallback_C)(const char* error, void* userData);
 
+// 新增：插件扫描相关回调
+typedef void (*PluginScanProgressCallback_C)(float progress, const char* currentFile, void* userData);
+typedef void (*PluginScanCompleteCallback_C)(int foundPlugins, void* userData);
+
 //==============================================================================
 // 引擎生命周期管理
 //==============================================================================
@@ -225,12 +229,33 @@ double Engine_GetDuration(WindsynthEngineHandle handle);
 //==============================================================================
 
 /**
- * 扫描可用插件
+ * 扫描插件（统一异步方法）
  * @param handle 引擎句柄
- * @param searchPaths 搜索路径数组（以NULL结尾）
- * @return 扫描到的插件数量
+ * @param rescanExisting 是否重新扫描已知插件
+ * @param progressCallback 进度回调（可为NULL）
+ * @param completeCallback 完成回调（可为NULL）
+ * @param userData 用户数据
  */
-int Engine_ScanPlugins(WindsynthEngineHandle handle, const char* const* searchPaths);
+void Engine_ScanPluginsAsync(WindsynthEngineHandle handle,
+                            bool rescanExisting,
+                            PluginScanProgressCallback_C progressCallback,
+                            PluginScanCompleteCallback_C completeCallback,
+                            void* userData);
+
+/**
+ * 停止当前插件扫描
+ * @param handle 引擎句柄
+ */
+void Engine_StopPluginScan(WindsynthEngineHandle handle);
+
+/**
+ * 检查是否正在扫描插件
+ * @param handle 引擎句柄
+ * @return 正在扫描返回true
+ */
+bool Engine_IsScanning(WindsynthEngineHandle handle);
+
+// 注意：Dead Man's Pedal和黑名单功能已内置到扫描器中，无需手动管理
 
 /**
  * 获取可用插件数量

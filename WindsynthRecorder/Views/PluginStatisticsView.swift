@@ -55,7 +55,9 @@ struct PluginStatisticsView: View {
                 
                 ToolbarItem(placement: .secondaryAction) {
                     Button("刷新") {
-                        let _ = audioGraphService.scanPlugins(searchPaths: ["/Library/Audio/Plug-Ins/VST3", "~/Library/Audio/Plug-Ins/VST3"])
+                        audioGraphService.scanPluginsAsync { foundPlugins in
+                            print("🔍 统计页面刷新完成，找到 \(foundPlugins) 个插件")
+                        }
                     }
                     .disabled(audioGraphService.isScanning)
                 }
@@ -63,7 +65,9 @@ struct PluginStatisticsView: View {
         }
         .onAppear {
             if audioGraphService.availablePlugins.isEmpty {
-                let _ = audioGraphService.scanPlugins(searchPaths: ["/Library/Audio/Plug-Ins/VST3", "~/Library/Audio/Plug-Ins/VST3"])
+                audioGraphService.scanPluginsAsync { foundPlugins in
+                    print("🔍 统计页面初始扫描完成，找到 \(foundPlugins) 个插件")
+                }
             }
         }
     }

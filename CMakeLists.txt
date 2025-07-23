@@ -133,28 +133,3 @@ if(APPLE)
         FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
     )
 endif()
-
-# ============================================================================
-# 测试程序（可选）
-# ============================================================================
-option(BUILD_TESTS "Build test programs" OFF)
-
-if(BUILD_TESTS)
-    # 创建测试可执行文件
-    add_executable(AudioGraphTests
-        test_runner_main.cpp
-        Libraries/JUCESupport/AudioGraph/Tests/AudioGraphTests.cpp
-    )
-
-    # 链接到我们的静态库
-    target_link_libraries(AudioGraphTests PRIVATE WindsynthVSTCore)
-
-    # 设置头文件搜索路径
-    target_include_directories(AudioGraphTests PRIVATE
-        Libraries/JUCESupport/AudioGraph
-        $<TARGET_PROPERTY:WindsynthVSTCore_Temp,JUCE_GENERATED_SOURCES_DIRECTORY>
-    )
-
-    # 确保测试程序在静态库构建后构建
-    add_dependencies(AudioGraphTests WindsynthVSTCore)
-endif()

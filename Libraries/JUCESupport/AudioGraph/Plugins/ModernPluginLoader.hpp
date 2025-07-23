@@ -3,7 +3,7 @@
 //  WindsynthRecorder
 //
 //  Created by AI Assistant
-//  现代插件加载器，直接使用JUCE AudioPluginFormatManager
+//  现代插件加载器，基于JUCE最佳实践
 //
 
 #pragma once
@@ -19,14 +19,15 @@
 namespace WindsynthVST::AudioGraph {
 
 /**
- * 现代插件加载器
- * 
- * 直接使用JUCE的AudioPluginFormatManager和KnownPluginList，
- * 提供现代化的插件扫描和加载功能：
- * - 支持VST2/VST3/AU等所有JUCE支持的格式
- * - 异步插件扫描和加载
- * - 智能缓存和黑名单管理
- * - 线程安全的操作
+ * 现代插件加载器 - 基于JUCE最佳实践
+ *
+ * 参考JUCE AudioPluginHost实现，提供企业级插件扫描和加载功能：
+ * - 使用PluginDirectoryScanner进行高效扫描
+ * - Dead Man's Pedal崩溃保护机制
+ * - 多线程并行扫描优化
+ * - VST3快速扫描支持
+ * - 子进程隔离扫描（可选）
+ * - 智能缓存和增量扫描
  */
 class ModernPluginLoader {
 public:
@@ -95,42 +96,33 @@ public:
     bool isFormatSupported(const juce::String& formatName) const;
     
     //==============================================================================
-    // 插件扫描
+    // 插件扫描 - 基于JUCE最佳实践（简化版）
     //==============================================================================
-    
+
     /**
-     * 异步扫描插件
-     * @param searchPaths 搜索路径
-     * @param recursive 是否递归搜索
+     * 扫描默认路径（主要方法）
      * @param rescanExisting 是否重新扫描已知插件
+     * @param numThreads 扫描线程数（0=自动检测）
      */
-    void scanPluginsAsync(const juce::FileSearchPath& searchPaths,
-                         bool recursive = true,
-                         bool rescanExisting = false);
-    
+    void scanDefaultPathsAsync(bool rescanExisting = false, int numThreads = 0);
+
     /**
-     * 扫描默认路径
-     * @param rescanExisting 是否重新扫描已知插件
-     */
-    void scanDefaultPathsAsync(bool rescanExisting = false);
-    
-    /**
-     * 扫描单个文件或目录
+     * 扫描单个文件或目录（用于特殊情况）
      * @param fileOrDirectory 文件或目录路径
      * @param rescanExisting 是否重新扫描已知插件
      */
     void scanFileAsync(const juce::File& fileOrDirectory, bool rescanExisting = false);
-    
+
     /**
      * 停止当前扫描
      */
     void stopScanning();
-    
+
     /**
      * 检查是否正在扫描
      * @return 正在扫描返回true
      */
-    bool isScanning() const { return scanning.load(); }
+    bool isScanning() const;
     
     //==============================================================================
     // 插件查询
@@ -220,26 +212,38 @@ public:
     bool doesPluginStillExist(const juce::PluginDescription& description) const;
     
     //==============================================================================
-    // 黑名单管理
+    // 崩溃保护和黑名单管理 - Dead Man's Pedal
     //==============================================================================
-    
+
+    /**
+     * 设置Dead Man's Pedal文件路径
+     * @param file 崩溃检测文件路径
+     */
+    void setDeadMansPedalFile(const juce::File& file);
+
+    /**
+     * 获取Dead Man's Pedal文件
+     * @return 崩溃检测文件
+     */
+    juce::File getDeadMansPedalFile() const;
+
     /**
      * 添加到黑名单
      * @param pluginId 插件ID
      */
     void addToBlacklist(const juce::String& pluginId);
-    
+
     /**
      * 从黑名单移除
      * @param pluginId 插件ID
      */
     void removeFromBlacklist(const juce::String& pluginId);
-    
+
     /**
      * 清除黑名单
      */
     void clearBlacklist();
-    
+
     /**
      * 获取黑名单
      * @return 黑名单文件列表
@@ -303,33 +307,54 @@ private:
     //==============================================================================
     // 内部成员变量
     //==============================================================================
-    
+
     // JUCE核心组件
     juce::AudioPluginFormatManager formatManager;
     juce::KnownPluginList knownPluginList;
-    
-    // 扫描状态
+
+    // 扫描器和线程管理
+    std::unique_ptr<juce::PluginDirectoryScanner> currentScanner;
+    std::unique_ptr<juce::ThreadPool> scanningThreadPool;
     std::atomic<bool> scanning{false};
     std::atomic<bool> shouldStopScanning{false};
-    std::unique_ptr<juce::ThreadPool> scanningThreadPool;
-    
+
+    // Dead Man's Pedal崩溃保护
+    juce::File deadMansPedalFile;
+
     // 回调函数
     ScanProgressCallback progressCallback;
     ScanCompleteCallback completeCallback;
-    
+
     // 线程安全
     mutable std::mutex listMutex;
-    
+    mutable std::mutex scannerMutex;
+
+    //==============================================================================
+    // 内部扫描作业类
+    //==============================================================================
+
+    class ScanJob;
+    friend class ScanJob;
+
     //==============================================================================
     // 内部方法
     //==============================================================================
-    
-    void performScan(const juce::FileSearchPath& paths, bool recursive, bool rescanExisting);
+
+    void performScanWithDirectoryScanner(juce::AudioPluginFormat& format,
+                                        const juce::FileSearchPath& paths,
+                                        bool recursive,
+                                        bool rescanExisting,
+                                        int numThreads);
+
+    void performLegacyScan(const juce::FileSearchPath& paths, bool recursive, bool rescanExisting);
     void notifyProgress(float progress, const juce::String& currentFile);
     void notifyComplete(int foundPlugins);
-    
+
     // 默认搜索路径
     juce::FileSearchPath getDefaultSearchPaths() const;
+
+    // 获取推荐的线程数
+    int getRecommendedThreadCount() const;
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ModernPluginLoader)
 };

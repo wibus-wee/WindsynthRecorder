@@ -54,7 +54,9 @@ struct VSTProcessorView: View {
                 // 如果还没有扫描过插件，自动开始扫描
                 if audioGraphService.availablePlugins.isEmpty && !audioGraphService.isScanning {
                     print("🔍 自动扫描 VST 插件...")
-                    let _ = audioGraphService.scanPlugins(searchPaths: ["/Library/Audio/Plug-Ins/VST3", "~/Library/Audio/Plug-Ins/VST3"])
+                    audioGraphService.scanPluginsAsync { foundPlugins in
+                        print("✅ 自动扫描完成，找到 \(foundPlugins) 个插件")
+                    }
                 } else {
                     // 如果已有插件列表，只刷新UI
                     audioGraphService.objectWillChange.send()
@@ -69,7 +71,9 @@ struct VSTProcessorView: View {
         HStack(spacing: 12) {
             // 扫描按钮
             Button(action: {
-                let _ = audioGraphService.scanPlugins(searchPaths: ["/Library/Audio/Plug-Ins/VST3", "~/Library/Audio/Plug-Ins/VST3"])
+                audioGraphService.scanPluginsAsync { foundPlugins in
+                    print("🔍 手动扫描完成，找到 \(foundPlugins) 个插件")
+                }
             }) {
                 HStack(spacing: 4) {
                     Image(systemName: audioGraphService.isScanning ? "arrow.clockwise" : "magnifyingglass")
@@ -268,7 +272,9 @@ struct VSTProcessorView: View {
 
             if audioGraphService.availablePlugins.isEmpty {
                 Button("扫描插件") {
-                    let _ = audioGraphService.scanPlugins(searchPaths: ["/Library/Audio/Plug-Ins/VST3", "~/Library/Audio/Plug-Ins/VST3"])
+                    audioGraphService.scanPluginsAsync { foundPlugins in
+                        print("🔍 扫描完成，找到 \(foundPlugins) 个插件")
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(audioGraphService.isScanning)

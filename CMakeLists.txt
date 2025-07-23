@@ -6,6 +6,9 @@ project(WindsynthRecorderVST VERSION 1.0.0)
 # 设置 macOS 部署目标（与 Xcode 项目保持一致）
 set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0")
 
+# 设置 macOS 架构为 universal binary（支持 arm64 和 x86_64）
+set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64")
+
 # 设置C++标准
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -44,11 +47,17 @@ juce_generate_juce_header(WindsynthVSTCore_Temp)
 
 # 创建静态库目标
 add_library(WindsynthVSTCore STATIC
-    Libraries/VSTSupport/VSTPluginManager.cpp
-    Libraries/VSTSupport/AudioProcessingChain.cpp
-    Libraries/VSTSupport/RealtimeProcessor.cpp
-    Libraries/VSTSupport/OfflineProcessor.cpp
-    Libraries/Bridge/VSTBridge.mm
+    # 新的AudioGraph架构
+    Libraries/JUCESupport/AudioGraph/Core/GraphAudioProcessor.cpp
+    Libraries/JUCESupport/AudioGraph/Plugins/ModernPluginLoader.cpp
+    Libraries/JUCESupport/AudioGraph/Plugins/PluginManager.cpp
+    Libraries/JUCESupport/AudioGraph/Management/GraphManager.cpp
+    Libraries/JUCESupport/AudioGraph/Management/AudioIOManager.cpp
+    Libraries/JUCESupport/AudioGraph/Management/PresetManager.cpp
+
+    # 新的引擎门面和桥接层
+    Libraries/JUCESupport/WindsynthEngineFacade.cpp
+    Libraries/JUCESupport/AudioGraphBridge.mm
 )
 
 # 确保静态库在临时应用生成头文件后构建
@@ -56,8 +65,8 @@ add_dependencies(WindsynthVSTCore WindsynthVSTCore_Temp)
 
 # 设置头文件搜索路径
 target_include_directories(WindsynthVSTCore PUBLIC
-    Libraries/VSTSupport
-    Libraries/Bridge
+    Libraries/JUCESupport/AudioGraph
+    Libraries/JUCESupport
     $<TARGET_PROPERTY:WindsynthVSTCore_Temp,JUCE_GENERATED_SOURCES_DIRECTORY>
 )
 
@@ -95,7 +104,6 @@ if(APPLE)
         "-framework CoreMIDI"
         "-framework Foundation"
         "-framework Accelerate"
-        "-lc++"  # 链接 C++ 标准库
     )
 endif()
 
@@ -120,13 +128,33 @@ if(APPLE)
     )
 
     # 安装头文件
-    install(DIRECTORY Libraries/VSTSupport/
-        DESTINATION include/VSTSupport
+    install(DIRECTORY Libraries/JUCESupport/
+        DESTINATION include/JUCESupport
         FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
+    )
+endif()
+
+# ============================================================================
+# 测试程序（可选）
+# ============================================================================
+option(BUILD_TESTS "Build test programs" OFF)
+
+if(BUILD_TESTS)
+    # 创建测试可执行文件
+    add_executable(AudioGraphTests
+        test_runner_main.cpp
+        Libraries/JUCESupport/AudioGraph/Tests/AudioGraphTests.cpp
     )
 
-    install(DIRECTORY Libraries/Bridge/
-        DESTINATION include/Bridge
-        FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
+    # 链接到我们的静态库
+    target_link_libraries(AudioGraphTests PRIVATE WindsynthVSTCore)
+
+    # 设置头文件搜索路径
+    target_include_directories(AudioGraphTests PRIVATE
+        Libraries/JUCESupport/AudioGraph
+        $<TARGET_PROPERTY:WindsynthVSTCore_Temp,JUCE_GENERATED_SOURCES_DIRECTORY>
     )
+
+    # 确保测试程序在静态库构建后构建
+    add_dependencies(AudioGraphTests WindsynthVSTCore)
 endif()

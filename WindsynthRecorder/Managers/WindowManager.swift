@@ -196,12 +196,45 @@ class WindowManager: ObservableObject {
     var hasToolWindowsOpen: Bool {
         return isAudioMixerOpen || isVSTManagerOpen || isAudioProcessorOpen || isSettingsOpen || isLogsOpen
     }
+
+    /// 根据窗口 ID 关闭对应的窗口
+    func closeWindow(withId windowId: String) {
+        switch windowId {
+        case WindowConfig.audioMixer.id:
+            closeAudioMixer()
+        case WindowConfig.vstManager.id:
+            closeVSTManager()
+        case WindowConfig.audioProcessor.id:
+            closeAudioProcessor()
+        case WindowConfig.settings.id:
+            closeSettings()
+        case WindowConfig.logs.id:
+            closeLogs()
+        default:
+            print("Unknown window ID: \(windowId)")
+        }
+    }
+
+    /// 强制关闭并销毁指定的窗口
+    func destroyWindow(withId windowId: String) {
+        // 首先更新状态
+        closeWindow(withId: windowId)
+
+        // 然后尝试从系统中移除窗口
+        DispatchQueue.main.async {
+            if let window = NSApplication.shared.windows.first(where: { $0.identifier?.rawValue == windowId }) {
+                window.close()
+                print("Window with ID '\(windowId)' has been destroyed")
+            }
+        }
+    }
 }
 
 // MARK: - 窗口样式修饰符
 struct WindowStyleModifier: ViewModifier {
     let config: WindowManager.WindowConfig
-    
+    @Environment(\.dismiss) private var dismiss
+
     func body(content: Content) -> some View {
         content
             .frame(
@@ -209,14 +242,17 @@ struct WindowStyleModifier: ViewModifier {
                 minHeight: config.minSize.height
             )
             .navigationTitle(config.title)
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button("关闭") {
-                        // 窗口关闭逻辑将在各个视图中实现
-                    }
-                    .keyboardShortcut("w", modifiers: .command)
-                }
-            }
+    }
+
+    /// 关闭并销毁当前窗口
+    private func closeWindow() {
+        let windowManager = WindowManager.shared
+
+        // 使用通用的窗口销毁方法
+        windowManager.destroyWindow(withId: config.id)
+
+        // 销毁 SwiftUI 视图
+        dismiss()
     }
 }
 

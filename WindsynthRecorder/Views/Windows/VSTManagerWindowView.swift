@@ -17,7 +17,7 @@ struct VSTManagerWindowView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button("关闭") {
-                        windowManager.closeVSTManager()
+                        windowManager.destroyWindow(withId: WindowManager.WindowConfig.vstManager.id)
                         dismiss()
                     }
                     .keyboardShortcut("w", modifiers: .command)

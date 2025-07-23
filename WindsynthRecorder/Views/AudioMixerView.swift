@@ -10,27 +10,37 @@ import UniformTypeIdentifiers
 
 /// 专业音频混音台主界面
 struct AudioMixerView: View {
-    @StateObject private var mixerService = AudioMixerService()
+    @StateObject private var audioGraphService = AudioGraphService.shared
 
     // UI状态
     @State private var showingFilePicker = false
     @State private var showingVSTProcessor = false
     @State private var showingPluginParameters = false
     @State private var selectedPluginName: String?
+    @State private var selectedNodeID: UInt32?
     @State private var outputGain: Float = 0.75
     @State private var isMonitoring = true
     @State private var masterVolume: Float = 0.8
     @State private var inputGain: Float = 0.6
 
-    // 导出相关状态
-    @State private var showingExportOptions = false
-    @State private var showingExportProgress = false
-    @State private var exportConfig = AudioExportConfig.forWebSharing()
-    @StateObject private var exportService = AudioExportService()
-
     // 波形数据
     @State private var waveformData: [Float] = []
     @State private var isLoadingWaveform = false
+
+    // 音频文件状态（适配新架构）
+    @State private var currentFileName: String = ""
+    @State private var currentAudioURL: URL?
+    @State private var duration: Double = 0.0
+    @State private var currentTime: Double = 0.0
+    @State private var playbackState: PlaybackState = .stopped
+    @State private var outputLevel: Double = 0.0
+
+    enum PlaybackState {
+        case stopped, playing, paused, loading
+    }
+
+    // 更新定时器
+    @State private var updateTimer: Timer?
 
     var body: some View {
         GeometryReader { geometry in
@@ -87,31 +97,24 @@ struct AudioMixerView: View {
             VSTProcessorView()
         }
         .sheet(isPresented: $showingPluginParameters) {
-            if let pluginName = selectedPluginName {
+            if let pluginName = selectedPluginName, let nodeID = selectedNodeID {
                 PluginParameterView(
                     pluginName: pluginName,
-                    vstManager: mixerService.getVSTManager()
+                    nodeID: nodeID,
+                    audioGraphService: audioGraphService
                 )
             }
         }
-        .sheet(isPresented: $showingExportOptions) {
-            AudioExportOptionsView(
-                config: $exportConfig,
-                exportService: exportService,
-                currentAudioURL: mixerService.getCurrentAudioURL(),
-                isPresented: $showingExportOptions
-            )
-        }
-        .sheet(isPresented: $showingExportProgress) {
-            AudioExportProgressView(
-                exportService: exportService,
-                isPresented: $showingExportProgress
-            )
-        }
-        .onReceive(mixerService.$errorMessage) { error in
+        .onReceive(audioGraphService.$errorMessage) { error in
             if let error = error {
-                print("Mixer error: \(error)")
+                print("AudioGraph error: \(error)")
             }
+        }
+        .onAppear {
+            startUpdateTimer()
+        }
+        .onDisappear {
+            stopUpdateTimer()
         }
         .onAppear {
             loadWaveformData()
@@ -135,31 +138,6 @@ struct AudioMixerView: View {
 
             Spacer()
 
-            // 导出控制按钮
-            HStack(spacing: 12) {
-                // 快速导出按钮
-                Button(action: {
-                    showingExportOptions = true
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 12, weight: .medium))
-                        Text("导出")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.orange.opacity(0.2))
-                    .foregroundColor(.orange)
-                    .cornerRadius(4)
-                }
-                .buttonStyle(.plain)
-                .help("导出当前音频")
-                .disabled(mixerService.currentFileName.isEmpty)
-            }
-
-            Spacer()
-
             // 专业状态指示器
             HStack(spacing: 16) {
                 ProfessionalStatusLED(
@@ -170,18 +148,18 @@ struct AudioMixerView: View {
 
                 ProfessionalStatusLED(
                     label: "PLAY",
-                    isActive: mixerService.playbackState == .playing,
+                    isActive: playbackState == .playing,
                     color: .green
                 )
 
                 ProfessionalStatusLED(
                     label: "VST",
-                    isActive: mixerService.isVSTProcessingEnabled,
+                    isActive: !audioGraphService.loadedPlugins.isEmpty,
                     color: .blue
                 )
 
                 // 时间码显示
-                Text(formatTimeCode(mixerService.currentTime))
+                Text(formatTimeCode(currentTime))
                     .font(.system(.title3, design: .monospaced, weight: .medium))
                     .foregroundColor(.white)
                     .padding(.horizontal, 12)
@@ -256,8 +234,8 @@ struct AudioMixerView: View {
 
                 Spacer()
 
-                if !mixerService.currentFileName.isEmpty {
-                    Text(mixerService.currentFileName)
+                if !currentFileName.isEmpty {
+                    Text(currentFileName)
                         .font(.system(.caption2, design: .rounded))
                         .foregroundColor(.gray)
                         .lineLimit(1)
@@ -271,10 +249,10 @@ struct AudioMixerView: View {
             ZStack {
                 NativeWaveformView(
                     audioData: waveformData,
-                    duration: mixerService.duration,
-                    currentTime: mixerService.currentTime,
+                    duration: duration,
+                    currentTime: currentTime,
                     onSeek: { time in
-                        mixerService.seek(to: time)
+                        _ = audioGraphService.seekTo(timeInSeconds: time)
                     }
                 )
 
@@ -325,7 +303,7 @@ struct AudioMixerView: View {
             .padding(.top, 16)
             .padding(.bottom, 8)
 
-            if mixerService.loadedPlugins.isEmpty {
+            if audioGraphService.loadedPlugins.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "music.note.list")
                         .font(.system(size: 32))
@@ -339,16 +317,106 @@ struct AudioMixerView: View {
             } else {
 
                 List {
-                    ForEach(mixerService.loadedPlugins.indices, id: \.self) { index in
-                        let pluginIdentifier = mixerService.loadedPlugins[index]
-                        ProfessionalPluginSlot(
-                            pluginName: getPluginDisplayName(identifier: pluginIdentifier),
-                            identifier: pluginIdentifier,
-                            vstManager: mixerService.getVSTManager(),
-                            onParametersPressed: {
-                                selectedPluginName = pluginIdentifier
-                                showingPluginParameters = true
+                    ForEach(actualPlugins, id: \.nodeID) { plugin in
+                        // 简化的插件槽显示，避免依赖VSTManagerExample
+                        HStack(spacing: 12) {
+                            // 拖拽指示器
+                            Image(systemName: "line.3.horizontal")
+                                .font(.caption)
+                                .foregroundColor(.gray.opacity(0.6))
+                                .frame(width: 16)
+
+                            // 插件信息
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(plugin.pluginName)
+                                    .font(.system(.caption, design: .rounded, weight: .medium))
+                                    .foregroundColor(.white)
+                                    .lineLimit(1)
+
+                                Text("Node ID: \(plugin.nodeID)")
+                                    .font(.system(.caption2, design: .rounded))
+                                    .foregroundColor(.gray)
                             }
+
+                            Spacer()
+
+                            // 控制按钮
+                            HStack(spacing: 6) {
+                                // 开关按钮
+                                Button(action: {
+                                    let newState = !plugin.isEnabled
+                                    audioGraphService.setNodeEnabled(nodeID: plugin.nodeID, enabled: newState) { success in
+                                        if success {
+                                            print("✅ 插件状态已更新: \(plugin.pluginName) -> \(newState ? "启用" : "禁用")")
+                                        } else {
+                                            print("❌ 插件状态更新失败: \(plugin.pluginName)")
+                                        }
+                                    }
+                                }) {
+                                    Image(systemName: plugin.isEnabled ? "power.circle.fill" : "power.circle")
+                                        .font(.caption)
+                                        .foregroundColor(plugin.isEnabled ? .green : .gray)
+                                        .frame(width: 24, height: 24)
+                                }
+                                .buttonStyle(.plain)
+
+                                // 参数按钮
+                                Button(action: {
+                                    selectedPluginName = plugin.pluginName
+                                    selectedNodeID = plugin.nodeID
+                                    showingPluginParameters = true
+                                }) {
+                                    Image(systemName: "gear")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                        .frame(width: 24, height: 24)
+                                }
+                                .buttonStyle(.plain)
+                                .help("插件参数")
+
+                                // 编辑器按钮
+                                Button(action: {
+                                    if audioGraphService.nodeHasEditor(nodeID: plugin.nodeID) {
+                                        let success = audioGraphService.showNodeEditor(nodeID: plugin.nodeID)
+                                        if !success {
+                                            print("❌ 无法显示插件编辑器: \(plugin.pluginName)")
+                                        } else {
+                                            print("✅ 显示插件编辑器: \(plugin.pluginName)")
+                                        }
+                                    } else {
+                                        print("ℹ️ 插件没有编辑器界面: \(plugin.pluginName)")
+                                    }
+                                }) {
+                                    Image(systemName: "slider.horizontal.3")
+                                        .font(.caption)
+                                        .foregroundColor(.blue)
+                                        .frame(width: 24, height: 24)
+                                }
+                                .buttonStyle(.plain)
+                                .help("插件编辑器")
+
+                                // 删除按钮
+                                Button(action: {
+                                    audioGraphService.removeNode(nodeID: plugin.nodeID) { success in
+                                        if success {
+                                            print("✅ 成功移除插件: \(plugin.pluginName)")
+                                        } else {
+                                            print("❌ 移除插件失败: \(plugin.pluginName)")
+                                        }
+                                    }
+                                }) {
+                                    Image(systemName: "xmark")
+                                        .font(.caption)
+                                        .foregroundColor(.red)
+                                        .frame(width: 24, height: 24)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.black.opacity(plugin.isEnabled ? 0.2 : 0.4))
                         )
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
@@ -399,8 +467,8 @@ struct AudioMixerView: View {
 
             // 主电平表
             ProfessionalMasterMeter(
-                leftLevel: mixerService.outputLevel,
-                rightLevel: mixerService.outputLevel
+                leftLevel: Float(outputLevel),
+                rightLevel: Float(outputLevel)
             )
 
             Spacer()
@@ -445,7 +513,7 @@ struct AudioMixerView: View {
 
     private var fileLoadSection: some View {
         VStack(spacing: 12) {
-            if mixerService.currentFileName.isEmpty {
+            if currentFileName.isEmpty {
                 Button(action: { showingFilePicker = true }) {
                     VStack(spacing: 8) {
                         Image(systemName: "doc.badge.plus")
@@ -471,12 +539,12 @@ struct AudioMixerView: View {
                             .foregroundColor(.green)
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(mixerService.currentFileName)
+                            Text(currentFileName)
                                 .font(.system(.caption, design: .rounded, weight: .medium))
                                 .foregroundColor(.white)
                                 .lineLimit(1)
 
-                            Text("Duration: \(formatTime(mixerService.duration))")
+                            Text("Duration: \(formatTime(duration))")
                                 .font(.system(.caption2, design: .monospaced))
                                 .foregroundColor(.gray)
                         }
@@ -509,8 +577,11 @@ struct AudioMixerView: View {
             // 倒带
             ProfessionalTransportButton(
                 icon: "backward.end.fill",
-                action: { mixerService.stop() },
-                isEnabled: mixerService.playbackState != .stopped,
+                action: {
+                    audioGraphService.stopPlayback()
+                    playbackState = .stopped
+                },
+                isEnabled: playbackState != .stopped,
                 color: .gray
             )
 
@@ -518,7 +589,7 @@ struct AudioMixerView: View {
             ProfessionalTransportButton(
                 icon: playbackButtonIcon,
                 action: togglePlayback,
-                isEnabled: !mixerService.currentFileName.isEmpty,
+                isEnabled: !currentFileName.isEmpty,
                 color: playbackButtonColor,
                 isLarge: true
             )
@@ -526,8 +597,11 @@ struct AudioMixerView: View {
             // 停止
             ProfessionalTransportButton(
                 icon: "stop.fill",
-                action: { mixerService.stop() },
-                isEnabled: mixerService.playbackState != .stopped,
+                action: {
+                    audioGraphService.stopPlayback()
+                    playbackState = .stopped
+                },
+                isEnabled: playbackState != .stopped,
                 color: .red
             )
 
@@ -561,13 +635,13 @@ struct AudioMixerView: View {
                 }
 
                 HStack {
-                    Text(formatTimeCode(mixerService.currentTime))
+                    Text(formatTimeCode(currentTime))
                         .font(.system(.title3, design: .monospaced, weight: .medium))
                         .foregroundColor(.white)
 
                     Spacer()
 
-                    Text(formatTimeCode(mixerService.duration))
+                    Text(formatTimeCode(duration))
                         .font(.system(.title3, design: .monospaced, weight: .medium))
                         .foregroundColor(.gray)
                 }
@@ -607,8 +681,13 @@ struct AudioMixerView: View {
         switch result {
         case .success(let urls):
             if let url = urls.first {
-                mixerService.loadAudioFile(url: url)
-                loadWaveformData()
+                let success = audioGraphService.loadAudioFile(filePath: url.path)
+                if success {
+                    currentAudioURL = url
+                    currentFileName = url.lastPathComponent
+                    duration = audioGraphService.getDuration()
+                    loadWaveformData()
+                }
             }
         case .failure(let error):
             print("File selection error: \(error)")
@@ -616,18 +695,21 @@ struct AudioMixerView: View {
     }
 
     private func togglePlayback() {
-        switch mixerService.playbackState {
+        switch playbackState {
         case .stopped, .paused:
-            mixerService.play()
+            if audioGraphService.play() {
+                playbackState = .playing
+            }
         case .playing:
-            mixerService.pause()
+            audioGraphService.pause()
+            playbackState = .paused
         case .loading:
             break
         }
     }
 
     private var playbackButtonIcon: String {
-        switch mixerService.playbackState {
+        switch playbackState {
         case .playing:
             return "pause.fill"
         case .loading:
@@ -638,7 +720,7 @@ struct AudioMixerView: View {
     }
 
     private var playbackButtonColor: Color {
-        switch mixerService.playbackState {
+        switch playbackState {
         case .playing:
             return .orange
         case .loading:
@@ -673,8 +755,8 @@ struct AudioMixerView: View {
 
     private func loadWaveformData() {
         // 从真实音频文件异步加载波形数据
-        guard !mixerService.currentFileName.isEmpty,
-              let currentURL = mixerService.currentAudioURL else {
+        guard !currentFileName.isEmpty,
+              let currentURL = currentAudioURL else {
             waveformData = []
             return
         }
@@ -706,6 +788,23 @@ struct AudioMixerView: View {
         }
     }
 
+    // MARK: - 计算属性
+
+    /// 过滤掉IO节点，只显示真实的插件
+    private var actualPlugins: [NodeInfo] {
+        return audioGraphService.loadedPlugins.filter { plugin in
+            // 过滤掉系统IO节点
+            !plugin.pluginName.contains("Audio Input") &&
+            !plugin.pluginName.contains("Audio Output") &&
+            !plugin.pluginName.contains("MIDI Input") &&
+            !plugin.pluginName.contains("MIDI Output") &&
+            !plugin.name.contains("Audio Input") &&
+            !plugin.name.contains("Audio Output") &&
+            !plugin.name.contains("MIDI Input") &&
+            !plugin.name.contains("MIDI Output")
+        }
+    }
+
     // MARK: - 拖拽重新排序
 
     /// 处理VST插件的拖拽重新排序（SwiftUI List版本）
@@ -722,16 +821,50 @@ struct AudioMixerView: View {
     private func handlePluginMove(from sourceIndex: Int, to destinationIndex: Int) {
         print("🔄 拖拽移动插件: from \(sourceIndex) to \(destinationIndex)")
 
-        // 调用VST管理器移动插件
-        let vstManager = mixerService.getVSTManager()
-        let success = vstManager.movePlugin(from: sourceIndex, to: destinationIndex)
+        let loadedPlugins = actualPlugins
+
+        // 检查索引有效性
+        guard sourceIndex >= 0 && sourceIndex < loadedPlugins.count &&
+              destinationIndex >= 0 && destinationIndex < loadedPlugins.count &&
+              sourceIndex != destinationIndex else {
+            print("❌ 无效的移动索引")
+            return
+        }
+
+        let sourcePlugin = loadedPlugins[sourceIndex]
+        let success = audioGraphService.moveNode(nodeID: sourcePlugin.nodeID, newPosition: destinationIndex)
 
         if success {
-            print("✅ 插件移动成功")
-            // VST管理器会自动更新loadedPlugins数组并触发UI更新
+            print("✅ 插件移动成功: \(sourcePlugin.name) -> 位置 \(destinationIndex)")
         } else {
-            print("❌ 插件移动失败")
-            // 可以在这里显示错误提示
+            print("❌ 插件移动失败: \(sourcePlugin.name)")
+        }
+    }
+
+    // MARK: - 定时器管理
+
+    private func startUpdateTimer() {
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            updatePlaybackStatus()
+        }
+    }
+
+    private func stopUpdateTimer() {
+        updateTimer?.invalidate()
+        updateTimer = nil
+    }
+
+    private func updatePlaybackStatus() {
+        // 更新当前播放时间
+        currentTime = audioGraphService.getCurrentTime()
+
+        // 更新输出电平
+        outputLevel = audioGraphService.getOutputLevel()
+
+        // 检查播放状态
+        if playbackState == .playing && currentTime >= duration && duration > 0 {
+            playbackState = .stopped
+            audioGraphService.stopPlayback()
         }
     }
 }

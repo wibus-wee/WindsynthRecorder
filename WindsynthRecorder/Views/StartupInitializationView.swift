@@ -158,7 +158,7 @@ class StartupInitializationManager: ObservableObject {
     @Published var progress: Double = 0.0
     @Published var detailText = ""
 
-    private let vstManager = VSTManagerExample.shared
+    private let audioGraphService = AudioGraphService.shared
     private let audioDeviceManager = AudioDeviceManager.shared
     private let ffmpegManager = FFmpegManager.shared
     private let notificationManager = NotificationManager.shared
@@ -208,20 +208,21 @@ class StartupInitializationManager: ObservableObject {
     }
 
     private func scanVSTPlugins() async {
-        // 设置扫描进度回调
-        vstManager.setScanProgressCallback { [weak self] pluginName, progress in
-            DispatchQueue.main.async {
-                self?.currentTask = "正在扫描 VST 插件..."
-                self?.progress = 0.35 + (Double(progress) * 0.5) // 从35%到85%
-                self?.detailText = "\(pluginName)"
-            }
-        }
+        // 使用新的AudioGraphService进行插件扫描
+        currentTask = "正在扫描 VST 插件..."
+        progress = 0.35
+        detailText = "初始化插件扫描器..."
 
         // 开始扫描
-        vstManager.scanForPlugins()
+        let pluginCount = audioGraphService.scanPlugins(searchPaths: [
+            "/Library/Audio/Plug-Ins/VST3",
+            "~/Library/Audio/Plug-Ins/VST3"
+        ])
 
-        // 等待扫描完成
-        while vstManager.isScanning {
+        // 模拟扫描进度
+        for i in 0...10 {
+            progress = 0.35 + (Double(i) * 0.05) // 从35%到85%
+            detailText = "已扫描 \(pluginCount) 个插件"
             try? await Task.sleep(nanoseconds: 100_000_000) // 0.1秒
         }
     }

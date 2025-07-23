@@ -20,7 +20,7 @@ struct PluginStatistics {
 
 /// 插件统计信息视图
 struct PluginStatisticsView: View {
-    @StateObject private var vstManager = VSTManagerExample.shared
+    @StateObject private var audioGraphService = AudioGraphService.shared
     @Environment(\.dismiss) private var dismiss
     
     private var statistics: PluginStatistics {
@@ -55,15 +55,15 @@ struct PluginStatisticsView: View {
                 
                 ToolbarItem(placement: .secondaryAction) {
                     Button("刷新") {
-                        vstManager.scanForPlugins()
+                        let _ = audioGraphService.scanPlugins(searchPaths: ["/Library/Audio/Plug-Ins/VST3", "~/Library/Audio/Plug-Ins/VST3"])
                     }
-                    .disabled(vstManager.isScanning)
+                    .disabled(audioGraphService.isScanning)
                 }
             }
         }
         .onAppear {
-            if vstManager.availablePlugins.isEmpty {
-                vstManager.scanForPlugins()
+            if audioGraphService.availablePlugins.isEmpty {
+                let _ = audioGraphService.scanPlugins(searchPaths: ["/Library/Audio/Plug-Ins/VST3", "~/Library/Audio/Plug-Ins/VST3"])
             }
         }
     }
@@ -180,21 +180,18 @@ struct PluginStatisticsView: View {
     // MARK: - Helper Methods
     
     private func calculateStatistics() -> PluginStatistics {
-        let plugins = vstManager.availablePlugins
+        let plugins = audioGraphService.availablePlugins
         
         var stats = PluginStatistics()
         stats.totalPlugins = plugins.count
         
         for plugin in plugins {
-            // 统计插件类型
-            if plugin.isInstrument {
-                stats.instrumentPlugins += 1
-            } else {
-                stats.effectPlugins += 1
-            }
-            
-            // 统计格式（目前只有 VST3）
-            if plugin.pluginFormatName.contains("VST3") {
+            // 统计插件类型（PluginDescription没有isInstrument属性，暂时都算作效果器）
+            // TODO: 在C++层添加插件类型信息
+            stats.effectPlugins += 1
+
+            // 统计格式
+            if plugin.format.contains("VST3") {
                 stats.vst3Plugins += 1
             }
             

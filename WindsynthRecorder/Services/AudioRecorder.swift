@@ -23,7 +23,7 @@ class AudioRecorder: NSObject, ObservableObject {
     var temporaryAudioURL: URL?
 
     // VST 处理相关
-    private var vstManager: VSTManagerExample?
+    private var audioGraphService: AudioGraphService?
     private var audioBuffer: UnsafeMutablePointer<Float>?
     private var bufferSize: Int = 0
     

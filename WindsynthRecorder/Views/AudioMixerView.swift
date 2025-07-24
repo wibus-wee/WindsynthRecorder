@@ -16,6 +16,7 @@ struct AudioMixerView: View {
     @State private var showingFilePicker = false
     @State private var showingVSTProcessor = false
     @State private var showingPluginParameters = false
+    @State private var showingRenderDialog = false
     @State private var selectedPluginName: String?
     @State private var selectedNodeID: UInt32?
     @State private var outputGain: Float = 0.75
@@ -26,6 +27,12 @@ struct AudioMixerView: View {
     // 波形数据
     @State private var waveformData: [Float] = []
     @State private var isLoadingWaveform = false
+
+    // 离线渲染状态
+    @State private var isRendering = false
+    @State private var renderProgress: Float = 0.0
+    @State private var renderMessage: String = ""
+    @State private var renderSettings = AudioGraphService.RenderSettings()
 
     // 音频文件状态（适配新架构）
     @State private var currentFileName: String = ""
@@ -93,6 +100,18 @@ struct AudioMixerView: View {
         ) { result in
             handleFileSelection(result)
         }
+        .sheet(isPresented: $showingRenderDialog) {
+            OfflineRenderDialog(
+                isPresented: $showingRenderDialog,
+                currentFileName: currentFileName,
+                currentAudioURL: currentAudioURL,
+                renderSettings: $renderSettings,
+                isRendering: $isRendering,
+                renderProgress: $renderProgress,
+                renderMessage: $renderMessage,
+                audioGraphService: audioGraphService
+            )
+        }
         .sheet(isPresented: $showingVSTProcessor) {
             VSTProcessorView()
         }
@@ -137,6 +156,31 @@ struct AudioMixerView: View {
             }
 
             Spacer()
+
+            // 导出按钮
+            Button(action: { showingRenderDialog = true }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(.caption, weight: .medium))
+                    Text("EXPORT")
+                        .font(.system(.caption, design: .rounded, weight: .bold))
+                        .tracking(0.5)
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.blue.opacity(0.8))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(Color.blue, lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(currentFileName.isEmpty || isRendering)
+            .opacity(currentFileName.isEmpty ? 0.5 : 1.0)
 
             // 专业状态指示器
             HStack(spacing: 16) {

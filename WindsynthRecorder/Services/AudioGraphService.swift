@@ -1033,4 +1033,154 @@ extension AudioGraphService {
 
         return Engine_GetInputLevel(handle)
     }
+
+    //==============================================================================
+    // MARK: - 离线音频渲染
+    //==============================================================================
+
+    /// 离线渲染配置
+    struct RenderSettings: Equatable {
+        var sampleRate: Int = 44100
+        var bitDepth: Int = 24
+        var numChannels: Int = 2
+        var normalizeOutput: Bool = false
+        var includePluginTails: Bool = false
+        var format: AudioFormat = .wav
+
+        enum AudioFormat: Int, CaseIterable {
+            case wav = 0
+            case aiff = 1
+
+            var displayName: String {
+                switch self {
+                case .wav: return "WAV"
+                case .aiff: return "AIFF"
+                }
+            }
+
+            var fileExtension: String {
+                switch self {
+                case .wav: return "wav"
+                case .aiff: return "aiff"
+                }
+            }
+        }
+
+        /// 转换为 C 结构
+        func toCStruct() -> RenderSettings_C {
+            return RenderSettings_C(
+                sampleRate: Int32(sampleRate),
+                bitDepth: Int32(bitDepth),
+                numChannels: Int32(numChannels),
+                normalizeOutput: normalizeOutput,
+                includePluginTails: includePluginTails,
+                format: Int32(format.rawValue)
+            )
+        }
+    }
+
+    /// 渲染进度回调类型
+    typealias RenderProgressCallback = (Float, String) -> Void
+
+    /// 离线渲染音频文件（通过 VST 处理链）
+    /// - Parameters:
+    ///   - inputPath: 输入音频文件路径
+    ///   - outputPath: 输出音频文件路径
+    ///   - settings: 渲染设置
+    ///   - progressCallback: 进度回调（可选）
+    ///   - completion: 完成回调
+    func renderToFile(
+        inputPath: String,
+        outputPath: String,
+        settings: RenderSettings = RenderSettings(),
+        progressCallback: RenderProgressCallback? = nil,
+        completion: @escaping (Bool, String?) -> Void
+    ) {
+        guard let handle = engineHandle else {
+            completion(false, "Audio engine not initialized")
+            return
+        }
+
+        logger.info("开始离线渲染", details: "输入: \(inputPath), 输出: \(outputPath)")
+
+        // 在后台线程执行渲染
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else {
+                DispatchQueue.main.async {
+                    completion(false, "Service deallocated")
+                }
+                return
+            }
+
+            var cSettings = settings.toCStruct()
+
+            // 创建进度回调包装器
+            let progressCallbackWrapper: @convention(c) (Float, UnsafePointer<CChar>?, UnsafeMutableRawPointer?) -> Void = { progress, message, userData in
+                guard let userData = userData else { return }
+
+                // 安全地获取回调包装器
+                let unmanagedWrapper = Unmanaged<RenderProgressCallbackWrapper>.fromOpaque(userData)
+                let callback = unmanagedWrapper.takeUnretainedValue()
+
+                let messageString = message != nil ? String(cString: message!) : ""
+
+                // 使用包装器的安全方法调用回调
+                callback.invokeCallback(progress: progress, message: messageString)
+            }
+
+            // 包装进度回调 - 使用 retained 引用确保内存安全
+            var callbackWrapper: RenderProgressCallbackWrapper?
+            var callbackPointer: UnsafeMutableRawPointer?
+
+            if let progressCallback = progressCallback {
+                callbackWrapper = RenderProgressCallbackWrapper(callback: progressCallback)
+                // 使用 passRetained 确保对象在 C++ 调用期间保持存活
+                callbackPointer = Unmanaged.passRetained(callbackWrapper!).toOpaque()
+            }
+
+            // 执行渲染
+            let success = Engine_RenderToFile(
+                handle,
+                inputPath,
+                outputPath,
+                &cSettings,
+                progressCallback != nil ? progressCallbackWrapper : nil,
+                callbackPointer
+            )
+
+            // 回到主线程执行完成回调
+            DispatchQueue.main.async {
+                // 清理回调包装器内存
+                if let callbackPointer = callbackPointer {
+                    // 释放之前 passRetained 的对象
+                    let _ = Unmanaged<RenderProgressCallbackWrapper>.fromOpaque(callbackPointer).takeRetainedValue()
+                }
+
+                if success {
+                    self.logger.info("离线渲染完成", details: "输出文件: \(outputPath)")
+                    completion(true, nil)
+                } else {
+                    self.logger.error("离线渲染失败", details: "请检查输入文件和输出路径")
+                    completion(false, "Render failed")
+                }
+            }
+        }
+    }
+}
+
+/// 进度回调包装器（用于 C 回调）
+private class RenderProgressCallbackWrapper {
+    private let callback: AudioGraphService.RenderProgressCallback
+    private let callbackQueue: DispatchQueue
+
+    init(callback: @escaping AudioGraphService.RenderProgressCallback) {
+        self.callback = callback
+        self.callbackQueue = DispatchQueue.main
+    }
+
+    func invokeCallback(progress: Float, message: String) {
+        callbackQueue.async { [weak self] in
+            self?.callback(progress, message)
+        }
+    }
 }

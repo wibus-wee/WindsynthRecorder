@@ -181,7 +181,7 @@ public:
     //==============================================================================
     // 音频文件处理
     //==============================================================================
-    
+
     /**
      * 加载音频文件
      * @param filePath 文件路径
@@ -204,6 +204,47 @@ public:
      * 停止播放
      */
     void stopPlayback();
+
+    //==============================================================================
+    // 离线音频渲染
+    //==============================================================================
+
+    /**
+     * 离线渲染配置结构
+     */
+    struct RenderSettings {
+        int sampleRate = 48000;          // 采样率
+        int bitDepth = 24;               // 位深度 (16, 24, 32)
+        int numChannels = 2;             // 声道数
+        bool normalizeOutput = true;     // 是否正常化输出
+        bool includePluginTails = true;  // 是否包含插件尾音
+
+        // 音频格式枚举
+        enum class Format {
+            WAV,
+            AIFF
+        } format = Format::WAV;
+    };
+
+    /**
+     * 渲染进度回调函数类型
+     * @param progress 进度 (0.0 - 1.0)
+     * @param message 状态消息
+     */
+    using RenderProgressCallback = std::function<void(float progress, const std::string& message)>;
+
+    /**
+     * 离线渲染音频文件（通过 VST 处理链）
+     * @param inputPath 输入音频文件路径
+     * @param outputPath 输出音频文件路径
+     * @param settings 渲染设置
+     * @param progressCallback 进度回调（可选）
+     * @return 成功返回true
+     */
+    bool renderToFile(const std::string& inputPath,
+                     const std::string& outputPath,
+                     const RenderSettings& settings,
+                     RenderProgressCallback progressCallback = nullptr);
     
     /**
      * 跳转到指定时间
@@ -483,6 +524,17 @@ private:
     void notifyError(const std::string& error);
     AudioGraph::NodeID convertToNodeID(uint32_t nodeID) const;
     uint32_t convertFromNodeID(AudioGraph::NodeID nodeID) const;
+
+    // 离线渲染辅助方法
+    bool createAudioWriter(const juce::File& outputFile,
+                          const RenderSettings& settings,
+                          double sourceSampleRate,
+                          std::unique_ptr<juce::AudioFormatWriter>& writer);
+
+    bool performOfflineRender(juce::AudioFormatReader* reader,
+                             juce::AudioFormatWriter* writer,
+                             const RenderSettings& settings,
+                             RenderProgressCallback progressCallback);
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WindsynthEngineFacade)
 };

@@ -515,6 +515,47 @@ bool Engine_GetConfiguration(WindsynthEngineHandle handle, EngineConfig_C* confi
  */
 bool Engine_UpdateConfiguration(WindsynthEngineHandle handle, const EngineConfig_C* config);
 
+//==============================================================================
+// 离线音频渲染
+//==============================================================================
+
+/**
+ * 离线渲染配置结构
+ */
+typedef struct {
+    int sampleRate;          // 采样率
+    int bitDepth;            // 位深度 (16, 24, 32)
+    int numChannels;         // 声道数
+    bool normalizeOutput;    // 是否正常化输出
+    bool includePluginTails; // 是否包含插件尾音
+    int format;              // 音频格式: 0 = WAV, 1 = AIFF
+} RenderSettings_C;
+
+/**
+ * 渲染进度回调函数类型
+ * @param progress 进度 (0.0 - 1.0)
+ * @param message 状态消息
+ * @param userData 用户数据
+ */
+typedef void (*RenderProgressCallback_C)(float progress, const char* message, void* userData);
+
+/**
+ * 离线渲染音频文件（通过 VST 处理链）
+ * @param handle 引擎句柄
+ * @param inputPath 输入音频文件路径
+ * @param outputPath 输出音频文件路径
+ * @param settings 渲染设置
+ * @param progressCallback 进度回调（可选，可传 NULL）
+ * @param userData 用户数据（传递给回调函数）
+ * @return 成功返回true
+ */
+bool Engine_RenderToFile(WindsynthEngineHandle handle,
+                        const char* inputPath,
+                        const char* outputPath,
+                        const RenderSettings_C* settings,
+                        RenderProgressCallback_C progressCallback,
+                        void* userData);
+
 #ifdef __cplusplus
 }
 #endif

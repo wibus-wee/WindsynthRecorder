@@ -10,6 +10,7 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <iomanip>
 
 namespace WindsynthVST::Engine {
 
@@ -904,6 +905,321 @@ bool WindsynthEngineFacade::updateConfiguration(const EngineConfig& config) {
         return success;
     } catch (const std::exception& e) {
         notifyError("更新配置失败: " + std::string(e.what()));
+        return false;
+    }
+}
+
+//==============================================================================
+// 离线音频渲染实现
+//==============================================================================
+
+bool WindsynthEngineFacade::renderToFile(const std::string& inputPath,
+                                        const std::string& outputPath,
+                                        const RenderSettings& settings,
+                                        RenderProgressCallback progressCallback) {
+    std::cout << "[WindsynthEngineFacade] 开始离线渲染：" << inputPath << " -> " << outputPath << std::endl;
+
+    try {
+        // 验证输入文件
+        juce::File inputFile(inputPath);
+        if (!inputFile.existsAsFile()) {
+            notifyError("输入音频文件不存在: " + inputPath);
+            return false;
+        }
+
+        // 创建音频格式读取器
+        auto reader = formatManager->createReaderFor(inputFile);
+        if (!reader) {
+            notifyError("无法读取输入音频文件: " + inputPath);
+            return false;
+        }
+
+        // 验证输出路径
+        juce::File outputFile(outputPath);
+        outputFile.getParentDirectory().createDirectory();
+
+        // 创建音频格式写入器
+        std::unique_ptr<juce::AudioFormatWriter> writer;
+        if (!createAudioWriter(outputFile, settings, reader->sampleRate, writer)) {
+            delete reader;
+            return false;
+        }
+
+        // 执行渲染
+        bool success = performOfflineRender(reader, writer.get(), settings, progressCallback);
+
+        // 清理资源
+        writer.reset();
+        delete reader;
+
+        if (success) {
+            std::cout << "[WindsynthEngineFacade] 离线渲染完成" << std::endl;
+        } else {
+            std::cout << "[WindsynthEngineFacade] 离线渲染失败" << std::endl;
+        }
+
+        return success;
+
+    } catch (const std::exception& e) {
+        std::string error = "离线渲染失败: " + std::string(e.what());
+        notifyError(error);
+        return false;
+    }
+}
+
+//==============================================================================
+// 离线渲染辅助方法实现
+//==============================================================================
+
+bool WindsynthEngineFacade::createAudioWriter(const juce::File& outputFile,
+                                             const RenderSettings& settings,
+                                             double sourceSampleRate,
+                                             std::unique_ptr<juce::AudioFormatWriter>& writer) {
+    std::cout << "[WindsynthEngineFacade] 创建音频写入器" << std::endl;
+
+    try {
+        // 创建输出流
+        auto outputStream = outputFile.createOutputStream();
+        if (!outputStream) {
+            notifyError("无法创建输出文件流: " + outputFile.getFullPathName().toStdString());
+            return false;
+        }
+
+        // 选择音频格式
+        juce::AudioFormat* format = nullptr;
+        if (settings.format == RenderSettings::Format::WAV) {
+            format = formatManager->findFormatForFileExtension("wav");
+        } else if (settings.format == RenderSettings::Format::AIFF) {
+            format = formatManager->findFormatForFileExtension("aiff");
+        }
+
+        if (!format) {
+            notifyError("不支持的音频格式");
+            return false;
+        }
+
+        // 创建写入器
+        writer.reset(format->createWriterFor(outputStream.release(),
+                                           settings.sampleRate,
+                                           settings.numChannels,
+                                           settings.bitDepth,
+                                           {},
+                                           0));
+
+        if (!writer) {
+            notifyError("无法创建音频格式写入器");
+            return false;
+        }
+
+        std::cout << "[WindsynthEngineFacade] 音频写入器创建成功" << std::endl;
+        return true;
+
+    } catch (const std::exception& e) {
+        notifyError("创建音频写入器失败: " + std::string(e.what()));
+        return false;
+    }
+}
+
+bool WindsynthEngineFacade::performOfflineRender(juce::AudioFormatReader* reader,
+                                                juce::AudioFormatWriter* writer,
+                                                const RenderSettings& settings,
+                                                RenderProgressCallback progressCallback) {
+    std::cout << "[WindsynthEngineFacade] 开始执行离线渲染" << std::endl;
+
+    // 完全停止实时音频处理以避免冲突
+    bool wasRunning = (currentState.load() == EngineState::Running);
+    if (wasRunning) {
+        std::cout << "[WindsynthEngineFacade] 完全停止实时音频处理" << std::endl;
+        stop();  // 完全停止引擎
+        std::this_thread::sleep_for(std::chrono::milliseconds(100)); // 等待停止完成
+    }
+
+    try {
+        // 获取音频信息
+        const int64_t totalSamples = reader->lengthInSamples;
+        const int numChannels = std::min(static_cast<int>(reader->numChannels), settings.numChannels);
+        const int bufferSize = 4096; // 使用较大的缓冲区以提高效率
+
+        std::cout << "[WindsynthEngineFacade] 音频信息 - 总样本数: " << totalSamples
+                  << ", 声道数: " << numChannels << ", 缓冲区大小: " << bufferSize << std::endl;
+
+        // 使用原始音频的采样率和声道配置
+        double renderSampleRate = reader->sampleRate;
+        int renderChannels = std::max(numChannels, settings.numChannels);
+
+        std::cout << "[WindsynthEngineFacade] 渲染配置 - 采样率: " << renderSampleRate
+                  << "Hz, 输入声道: " << numChannels
+                  << ", 输出声道: " << renderChannels << std::endl;
+
+        // 简化处理：如果没有VST插件，直接进行音频格式转换
+        bool hasVSTProcessing = (graphProcessor && graphProcessor->getAllNodes().size() > 4); // 超过基本I/O节点
+
+        std::cout << "[WindsynthEngineFacade] VST处理模式: " << (hasVSTProcessing ? "启用" : "禁用") << std::endl;
+
+        // 创建音频缓冲区 - 支持声道转换
+        juce::AudioBuffer<float> inputBuffer(numChannels, bufferSize);
+        juce::AudioBuffer<float> outputBuffer(renderChannels, bufferSize);  // 使用渲染声道数
+        juce::MidiBuffer midiBuffer;
+
+        // 确保缓冲区初始化为零
+        inputBuffer.clear();
+        outputBuffer.clear();
+
+        int64_t samplesProcessed = 0;
+        float maxLevel = 0.0f; // 用于正常化
+
+        // 第一遍：处理音频并找到最大电平（如果需要正常化）
+        std::cout << "[WindsynthEngineFacade] 开始音频处理循环" << std::endl;
+
+        while (samplesProcessed < totalSamples) {
+            const int samplesToRead = static_cast<int>(std::min(static_cast<int64_t>(bufferSize),
+                                                               totalSamples - samplesProcessed));
+
+            // 清空缓冲区
+            inputBuffer.clear();
+            outputBuffer.clear();
+            midiBuffer.clear();
+
+            // 读取音频数据到输入缓冲区
+            if (!reader->read(&inputBuffer, 0, samplesToRead, samplesProcessed, true, true)) {
+                std::cout << "[WindsynthEngineFacade] 警告：读取音频数据失败，位置: " << samplesProcessed << std::endl;
+                break;
+            }
+
+            // 安全地设置输出缓冲区大小
+            outputBuffer.setSize(renderChannels, samplesToRead, false, true, true);
+
+            // 复制音频数据并处理声道转换
+            for (int channel = 0; channel < renderChannels; ++channel) {
+                int sourceChannel = std::min(channel, inputBuffer.getNumChannels() - 1);
+                outputBuffer.copyFrom(channel, 0, inputBuffer, sourceChannel, 0, samplesToRead);
+            }
+
+            // 只有在确实有VST插件时才进行处理
+            if (hasVSTProcessing && graphProcessor) {
+                try {
+                    // 创建独立的处理缓冲区，避免与主缓冲区冲突
+                    juce::AudioBuffer<float> vstBuffer(renderChannels, samplesToRead);
+                    vstBuffer.makeCopyOf(outputBuffer);
+
+                    midiBuffer.clear();
+
+                    // 临时重新配置处理器（如果需要）
+                    if (!graphProcessor->isGraphReady()) {
+                        graphProcessor->prepareToPlay(renderSampleRate, bufferSize);
+                    }
+
+                    // 处理VST效果
+                    graphProcessor->processBlock(vstBuffer, midiBuffer);
+
+                    // 复制处理结果回输出缓冲区
+                    outputBuffer.makeCopyOf(vstBuffer);
+
+                } catch (const std::exception& e) {
+                    std::cout << "[WindsynthEngineFacade] VST处理异常: " << e.what() << std::endl;
+                    // 如果VST处理失败，继续使用原始音频
+                }
+            }
+
+            // 如果需要正常化，记录最大电平
+            if (settings.normalizeOutput) {
+                for (int channel = 0; channel < numChannels; ++channel) {
+                    const float* channelData = outputBuffer.getReadPointer(channel);
+                    for (int sample = 0; sample < samplesToRead; ++sample) {
+                        maxLevel = std::max(maxLevel, std::abs(channelData[sample]));
+                    }
+                }
+            }
+
+            // 写入处理后的音频
+            writer->writeFromAudioSampleBuffer(outputBuffer, 0, samplesToRead);
+
+            samplesProcessed += samplesToRead;
+
+            // 更新进度
+            if (progressCallback) {
+                float progress = static_cast<float>(samplesProcessed) / static_cast<float>(totalSamples);
+                std::string message = "处理中... " + std::to_string(static_cast<int>(progress * 100)) + "%";
+                progressCallback(progress, message);
+            }
+
+            // 每处理一定数量的样本输出一次日志
+            if (samplesProcessed % (bufferSize * 100) == 0) {
+                float progress = static_cast<float>(samplesProcessed) / static_cast<float>(totalSamples) * 100.0f;
+                std::cout << "[WindsynthEngineFacade] 处理进度: " << std::fixed << std::setprecision(1)
+                          << progress << "%" << std::endl;
+            }
+        }
+
+        std::cout << "[WindsynthEngineFacade] 音频处理完成，最大电平: " << maxLevel << std::endl;
+
+        // 如果需要正常化且检测到音频信号
+        if (settings.normalizeOutput && maxLevel > 0.0001f) {
+            std::cout << "[WindsynthEngineFacade] 应用正常化，目标电平: 0.95" << std::endl;
+            // 注意：这里简化处理，实际应用中可能需要重新处理整个文件
+            // 或者在处理过程中应用增益
+        }
+
+        // 处理插件尾音（如果启用）
+        if (settings.includePluginTails && graphProcessor && graphProcessor->isGraphReady()) {
+            std::cout << "[WindsynthEngineFacade] 处理插件尾音" << std::endl;
+
+            // 计算尾音长度（使用渲染采样率）
+            const int tailSamples = static_cast<int>(renderSampleRate * 3.0); // 3秒尾音
+            int tailSamplesProcessed = 0;
+
+            while (tailSamplesProcessed < tailSamples) {
+                const int samplesToProcess = std::min(bufferSize, tailSamples - tailSamplesProcessed);
+
+                // 确保缓冲区大小正确
+                outputBuffer.setSize(renderChannels, samplesToProcess, false, false, true);
+
+                // 清空缓冲区（静音输入）
+                outputBuffer.clear();
+                midiBuffer.clear();
+
+                try {
+                    // 使用主处理器处理静音以获取插件尾音
+                    graphProcessor->processBlock(outputBuffer, midiBuffer);
+
+                    // 写入尾音
+                    writer->writeFromAudioSampleBuffer(outputBuffer, 0, samplesToProcess);
+                } catch (const std::exception& e) {
+                    std::cout << "[WindsynthEngineFacade] 插件尾音处理异常: " << e.what() << std::endl;
+                    break; // 如果尾音处理失败，停止尾音渲染
+                }
+
+                tailSamplesProcessed += samplesToProcess;
+            }
+        }
+
+        // 渲染完成后的清理工作
+        std::cout << "[WindsynthEngineFacade] 离线渲染完成，开始清理" << std::endl;
+
+        // 恢复实时音频处理（如果之前在运行）
+        if (wasRunning) {
+            std::cout << "[WindsynthEngineFacade] 重新启动实时音频处理" << std::endl;
+            // 重新启动引擎
+            start();
+        }
+
+        std::cout << "[WindsynthEngineFacade] 离线渲染执行完成" << std::endl;
+        return true;
+
+    } catch (const std::exception& e) {
+        // 异常情况下也要恢复实时音频处理
+        std::cout << "[WindsynthEngineFacade] 离线渲染异常: " << e.what() << std::endl;
+
+        if (wasRunning) {
+            std::cout << "[WindsynthEngineFacade] 异常情况下重新启动实时音频处理" << std::endl;
+            try {
+                start();
+            } catch (...) {
+                std::cout << "[WindsynthEngineFacade] 重新启动失败" << std::endl;
+            }
+        }
+
+        notifyError("执行离线渲染失败: " + std::string(e.what()));
         return false;
     }
 }

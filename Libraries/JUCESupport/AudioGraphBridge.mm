@@ -908,3 +908,73 @@ bool Engine_UpdateConfiguration(WindsynthEngineHandle handle, const EngineConfig
         return false;
     }
 }
+
+//==============================================================================
+// 离线音频渲染实现
+//==============================================================================
+
+bool Engine_RenderToFile(WindsynthEngineHandle handle,
+                         const char* inputPath,
+                         const char* outputPath,
+                         const RenderSettings_C* settings,
+                         RenderProgressCallback_C progressCallback,
+                         void* userData) {
+    auto wrapper = getEngineWrapper(handle);
+    if (!wrapper || !inputPath || !outputPath || !settings) {
+        std::cerr << "[Engine_RenderToFile] 无效的参数" << std::endl;
+        return false;
+    }
+
+    try {
+        std::cout << "[Engine_RenderToFile] 开始离线渲染" << std::endl;
+        std::cout << "输入文件: " << inputPath << std::endl;
+        std::cout << "输出文件: " << outputPath << std::endl;
+
+        // 转换 C 结构到 C++ 结构
+        WindsynthEngineFacade::RenderSettings cppSettings;
+        cppSettings.sampleRate = settings->sampleRate;
+        cppSettings.bitDepth = settings->bitDepth;
+        cppSettings.numChannels = settings->numChannels;
+        cppSettings.normalizeOutput = settings->normalizeOutput;
+        cppSettings.includePluginTails = settings->includePluginTails;
+
+        // 转换格式枚举
+        if (settings->format == 0) {
+            cppSettings.format = WindsynthEngineFacade::RenderSettings::Format::WAV;
+        } else if (settings->format == 1) {
+            cppSettings.format = WindsynthEngineFacade::RenderSettings::Format::AIFF;
+        } else {
+            std::cerr << "[Engine_RenderToFile] 不支持的音频格式: " << settings->format << std::endl;
+            return false;
+        }
+
+        // 创建进度回调包装器
+        WindsynthEngineFacade::RenderProgressCallback cppProgressCallback = nullptr;
+        if (progressCallback) {
+            cppProgressCallback = [progressCallback, userData](float progress, const std::string& message) {
+                progressCallback(progress, message.c_str(), userData);
+            };
+        }
+
+        // 执行离线渲染
+        bool result = wrapper->engine->renderToFile(std::string(inputPath),
+                                                   std::string(outputPath),
+                                                   cppSettings,
+                                                   cppProgressCallback);
+
+        if (result) {
+            std::cout << "[Engine_RenderToFile] 离线渲染成功完成" << std::endl;
+        } else {
+            std::cout << "[Engine_RenderToFile] 离线渲染失败" << std::endl;
+        }
+
+        return result;
+
+    } catch (const std::exception& e) {
+        std::cerr << "[Engine_RenderToFile] 异常: " << e.what() << std::endl;
+        return false;
+    } catch (...) {
+        std::cerr << "[Engine_RenderToFile] 未知异常" << std::endl;
+        return false;
+    }
+}

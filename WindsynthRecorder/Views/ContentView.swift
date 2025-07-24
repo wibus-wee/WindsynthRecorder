@@ -12,7 +12,7 @@ struct ContentView: View {
 
     @State private var showingSaveDialog = false
     @State private var fileName = ""
-    @State private var maximizeLoudness = true
+    @State private var maximizeLoudness = false
     @State private var loudnessMethod: LoudnessMethod = .aggressive
     @State private var loudnessSettings = LoudnessSettings()
     @State private var showingLoudnessSettings = false
@@ -824,7 +824,7 @@ struct ContentView: View {
         selectedSampleRate = .rate44100
         selectedBitDepth = .bit16
         selectedFileFormat = .wav
-        autoNormalize = true
+        autoNormalize = false
         enableNoiseGate = false
         noiseGateThreshold = -40.0
     }
@@ -1144,7 +1144,7 @@ struct ContentView: View {
         checkDevices()
         // Reset file name for new recording
         fileName = ""
-        maximizeLoudness = true
+        maximizeLoudness = false
         audioRecorder.startRecording()
     }
     

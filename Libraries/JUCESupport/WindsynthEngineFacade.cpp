@@ -219,22 +219,41 @@ bool WindsynthEngineFacade::loadAudioFile(const std::string& filePath) {
             return false;
         }
 
-        // 创建音频格式读取器
+        // 第一步：停止当前播放（如果正在播放）
+        if (transportSource) {
+            transportSource->stop();
+            std::cout << "[WindsynthEngineFacade] 停止当前播放" << std::endl;
+        }
+
+        // 第二步：清空当前传输源，释放旧资源
+        if (transportSource) {
+            transportSource->setSource(nullptr);
+            std::cout << "[WindsynthEngineFacade] 清空传输源" << std::endl;
+        }
+
+        // 第三步：重置读取器源
+        readerSource.reset();
+        std::cout << "[WindsynthEngineFacade] 重置读取器源" << std::endl;
+
+        // 第四步：创建音频格式读取器
         auto reader = formatManager->createReaderFor(audioFile);
         if (!reader) {
             notifyError("无法读取音频文件: " + filePath);
             return false;
         }
 
-        // 创建音频格式读取器源
+        // 第五步：创建新的音频格式读取器源
         readerSource = std::make_unique<juce::AudioFormatReaderSource>(reader, true);
+        std::cout << "[WindsynthEngineFacade] 创建新的读取器源" << std::endl;
 
-        // 设置到传输源
+        // 第六步：设置新源到传输源
         transportSource->setSource(readerSource.get(), 0, nullptr, reader->sampleRate);
+        std::cout << "[WindsynthEngineFacade] 设置新源到传输源" << std::endl;
 
-        // 将transportSource设置到GraphAudioProcessor中
+        // 第七步：将transportSource设置到GraphAudioProcessor中
         if (graphProcessor) {
             graphProcessor->setTransportSource(transportSource.get());
+            std::cout << "[WindsynthEngineFacade] 设置传输源到图形处理器" << std::endl;
         }
 
         std::cout << "[WindsynthEngineFacade] 音频文件加载成功" << std::endl;

@@ -17,6 +17,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		3804A5242E31D8CC00B6D295 /* AudioGraphBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = AudioGraphBridge.h; path = Libraries/JUCESupport/AudioGraphBridge.h; sourceTree = "<group>"; };
 		383B542E2D689F2A00E100B0 /* WindsynthRecorder.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WindsynthRecorder.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		38C0E2A62E29583500F381CF /* libWindsynthVSTCore.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libWindsynthVSTCore.a; path = build/lib/libWindsynthVSTCore.a; sourceTree = "<group>"; };
 		38C0E3D92E2A11B900F381CF /* libc++.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = "libc++.tbd"; path = "usr/lib/libc++.tbd"; sourceTree = SDKROOT; };
@@ -69,6 +70,7 @@
 		383B54252D689F2A00E100B0 = {
 			isa = PBXGroup;
 			children = (
+				3804A5242E31D8CC00B6D295 /* AudioGraphBridge.h */,
 				383B54302D689F2A00E100B0 /* WindsynthRecorder */,
 				38C0E2A52E29583500F381CF /* Frameworks */,
 				383B542F2D689F2A00E100B0 /* Products */,

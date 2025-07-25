@@ -14,12 +14,12 @@
 #include <mutex>
 
 // AudioGraph 组件
-#include "../AudioGraph/Core/GraphAudioProcessor.hpp"
-#include "../AudioGraph/Management/GraphManager.hpp"
-#include "../AudioGraph/Plugins/PluginManager.hpp"
-#include "../AudioGraph/Plugins/ModernPluginLoader.hpp"
-#include "../AudioGraph/Management/AudioIOManager.hpp"
-#include "../AudioGraph/Management/PresetManager.hpp"
+#include "AudioGraph/Core/GraphAudioProcessor.hpp"
+#include "AudioGraph/Management/GraphManager.hpp"
+#include "AudioGraph/Plugins/PluginManager.hpp"
+#include "AudioGraph/Plugins/ModernPluginLoader.hpp"
+#include "AudioGraph/Management/AudioIOManager.hpp"
+#include "AudioGraph/Management/PresetManager.hpp"
 
 namespace WindsynthVST::Engine::Core {
 

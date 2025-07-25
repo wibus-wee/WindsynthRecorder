@@ -15,7 +15,41 @@
 
 WindsynthRecorder 是一款专业的 macOS 音频录制与处理应用，采用 SwiftUI 和 JUCE 构建。该应用专为电子管乐器(SR)录音设计，支持高级 VST 插件，实现实时与离线音频处理。
 
-> 消极更新阶段...
+<table>
+  <tr>
+    <th>Startup</th>
+    <th>HomePage</th>
+    <th>AudioMixView</th>
+  </tr>
+  <tr>
+    <td>
+      <img src="./WindsynthRecorder/Preview%20Content/Preview%20Assets.xcassets/Startup.imageset/CleanShot%202025-07-26%20at%2000.13.47@2x.png" alt="Startup" width="100%" />
+    </td>
+    <td>
+      <img src="./WindsynthRecorder/Preview%20Content/Preview%20Assets.xcassets/HomePage.imageset/CleanShot%202025-07-26%20at%2000.20.47@2x.png" alt="HomePage" width="100%"/>
+    </td>
+    <td>
+      <img src="./WindsynthRecorder/Preview%20Content/Preview%20Assets.xcassets/AudioMixView.imageset/CleanShot%202025-07-26%20at%2000.14.35@2x.png" alt="AudioMixView" width="100%"/>
+    </td>
+  </tr>
+  <tr>
+    <th>VSTManager</th>
+    <th>Logger</th>
+    <th>BatchProcessor</th>
+  </tr>
+  <tr>
+    <td>
+      <img src="./WindsynthRecorder/Preview%20Content/Preview%20Assets.xcassets/VSTManager.imageset/CleanShot%202025-07-26%20at%2000.14.08@2x.png" alt="VSTManager" width="100%"/>
+    </td>
+    <td>
+      <img src="./WindsynthRecorder/Preview%20Content/Preview%20Assets.xcassets/Logger.imageset/CleanShot%202025-07-26%20at%2000.15.55@2x.png" alt="Logger" width="100%"/>
+    </td>
+    <td>
+    <img src="./WindsynthRecorder/Preview%20Content/Preview%20Assets.xcassets/BatchProcessor.imageset/CleanShot%202025-07-26%20at%2000.15.18@2x.png" alt="BatchProcessor" width="100%"/>
+    </td>
+  </tr>
+</table>
+
 
 ## 设计初衷
 

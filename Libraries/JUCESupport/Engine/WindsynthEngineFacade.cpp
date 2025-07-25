@@ -123,10 +123,23 @@ bool WindsynthEngineFacade::renderToFile(const std::string& inputPath,
 
     // 完全停止实时音频处理以避免冲突
     bool wasRunning = isRunning();
+    std::shared_ptr<AudioGraph::AudioIOManager> ioManager = nullptr;
+
     if (wasRunning) {
         std::cout << "[WindsynthEngineFacade] 完全停止实时音频处理" << std::endl;
         stop();  // 完全停止引擎
         std::this_thread::sleep_for(std::chrono::milliseconds(100)); // 等待停止完成
+    }
+
+    // 关键：断开音频设备连接以防止离线渲染时播放声音
+    ioManager = context_->getIOManager();
+    if (ioManager) {
+        std::cout << "[WindsynthEngineFacade] 断开音频设备连接" << std::endl;
+        auto deviceManager = ioManager->getDeviceManager();
+        auto graphProcessor = context_->getGraphProcessor();
+        if (deviceManager && graphProcessor) {
+            deviceManager->removeAudioCallback(graphProcessor.get());
+        }
     }
 
     try {
@@ -381,7 +394,16 @@ bool WindsynthEngineFacade::renderToFile(const std::string& inputPath,
         // 完成渲染
         writer.reset(); // 确保文件被正确关闭
 
-        // 恢复实时音频处理（如果之前在运行）
+        // 恢复音频设备连接和实时音频处理（如果之前在运行）
+        if (ioManager) {
+            std::cout << "[WindsynthEngineFacade] 重新连接音频设备" << std::endl;
+            auto deviceManager = ioManager->getDeviceManager();
+            auto graphProcessor = context_->getGraphProcessor();
+            if (deviceManager && graphProcessor) {
+                deviceManager->addAudioCallback(graphProcessor.get());
+            }
+        }
+
         if (wasRunning) {
             std::cout << "[WindsynthEngineFacade] 重新启动实时音频处理" << std::endl;
             // 重新启动引擎
@@ -396,8 +418,22 @@ bool WindsynthEngineFacade::renderToFile(const std::string& inputPath,
         return true;
 
     } catch (const std::exception& e) {
-        // 异常情况下也要恢复实时音频处理
+        // 异常情况下也要恢复音频设备连接和实时音频处理
         std::cout << "[WindsynthEngineFacade] 离线渲染异常: " << e.what() << std::endl;
+
+        // 异常情况下也要恢复音频设备连接
+        if (ioManager) {
+            std::cout << "[WindsynthEngineFacade] 异常情况下重新连接音频设备" << std::endl;
+            try {
+                auto deviceManager = ioManager->getDeviceManager();
+                auto graphProcessor = context_->getGraphProcessor();
+                if (deviceManager && graphProcessor) {
+                    deviceManager->addAudioCallback(graphProcessor.get());
+                }
+            } catch (...) {
+                std::cout << "[WindsynthEngineFacade] 重新连接音频设备失败" << std::endl;
+            }
+        }
 
         if (wasRunning) {
             std::cout << "[WindsynthEngineFacade] 异常情况下重新启动实时音频处理" << std::endl;
@@ -413,8 +449,22 @@ bool WindsynthEngineFacade::renderToFile(const std::string& inputPath,
         }
         return false;
     } catch (...) {
-        // 异常情况下也要恢复实时音频处理
+        // 异常情况下也要恢复音频设备连接和实时音频处理
         std::cout << "[WindsynthEngineFacade] 离线渲染未知异常" << std::endl;
+
+        // 异常情况下也要恢复音频设备连接
+        if (ioManager) {
+            std::cout << "[WindsynthEngineFacade] 异常情况下重新连接音频设备" << std::endl;
+            try {
+                auto deviceManager = ioManager->getDeviceManager();
+                auto graphProcessor = context_->getGraphProcessor();
+                if (deviceManager && graphProcessor) {
+                    deviceManager->addAudioCallback(graphProcessor.get());
+                }
+            } catch (...) {
+                std::cout << "[WindsynthEngineFacade] 重新连接音频设备失败" << std::endl;
+            }
+        }
 
         if (wasRunning) {
             std::cout << "[WindsynthEngineFacade] 异常情况下重新启动实时音频处理" << std::endl;

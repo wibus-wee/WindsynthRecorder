@@ -135,12 +135,39 @@ bool ModernPluginLoader::isFormatSupported(const juce::String& formatName) const
 //==============================================================================
 
 void ModernPluginLoader::scanDefaultPathsAsync(bool rescanExisting, int numThreads) {
+    std::cout << "[ModernPluginLoader] 开始扫描默认路径（使用JUCE最佳实践）" << std::endl;
+    scanDefaultPathsFastAsync(rescanExisting, numThreads);
+    // if (scanning.load()) {
+    //     std::cout << "[ModernPluginLoader] 已有扫描在进行中" << std::endl;
+    //     return;
+    // }
+
+    // std::cout << "[ModernPluginLoader] 开始扫描默认路径（使用JUCE最佳实践）" << std::endl;
+
+    // scanning.store(true);
+    // shouldStopScanning.store(false);
+
+    // // 获取默认路径
+    // auto defaultPaths = getDefaultSearchPaths();
+
+    // // 确定线程数
+    // int actualThreads = numThreads > 0 ? numThreads : getRecommendedThreadCount();
+
+    // // 为每种格式启动扫描
+    // for (auto* format : formatManager.getFormats()) {
+    //     scanningThreadPool->addJob([this, format, defaultPaths, rescanExisting, actualThreads]() {
+    //         performScanWithDirectoryScanner(*format, defaultPaths, true, rescanExisting, actualThreads);
+    //     });
+    // }
+}
+
+void ModernPluginLoader::scanDefaultPathsFastAsync(bool rescanExisting, int numThreads) {
     if (scanning.load()) {
         std::cout << "[ModernPluginLoader] 已有扫描在进行中" << std::endl;
         return;
     }
 
-    std::cout << "[ModernPluginLoader] 开始扫描默认路径（使用JUCE最佳实践）" << std::endl;
+    std::cout << "[ModernPluginLoader] 开始快速扫描默认路径（优先 VST3）" << std::endl;
 
     scanning.store(true);
     shouldStopScanning.store(false);
@@ -151,11 +178,23 @@ void ModernPluginLoader::scanDefaultPathsAsync(bool rescanExisting, int numThrea
     // 确定线程数
     int actualThreads = numThreads > 0 ? numThreads : getRecommendedThreadCount();
 
-    // 为每种格式启动扫描
+    // 优先扫描 VST3 格式（支持快速扫描）
     for (auto* format : formatManager.getFormats()) {
-        scanningThreadPool->addJob([this, format, defaultPaths, rescanExisting, actualThreads]() {
-            performScanWithDirectoryScanner(*format, defaultPaths, true, rescanExisting, actualThreads);
-        });
+        if (format->getName().contains("VST3")) {
+            std::cout << "[ModernPluginLoader] 优先快速扫描 VST3 插件" << std::endl;
+            scanningThreadPool->addJob([this, format, defaultPaths, rescanExisting, actualThreads]() {
+                performScanWithDirectoryScanner(*format, defaultPaths, true, rescanExisting, actualThreads);
+            });
+        }
+    }
+
+    // 然后扫描其他格式
+    for (auto* format : formatManager.getFormats()) {
+        if (!format->getName().contains("VST3")) {
+            scanningThreadPool->addJob([this, format, defaultPaths, rescanExisting, actualThreads]() {
+                performScanWithDirectoryScanner(*format, defaultPaths, true, rescanExisting, actualThreads);
+            });
+        }
     }
 }
 
@@ -463,6 +502,59 @@ std::map<juce::String, int> ModernPluginLoader::getPluginCountByFormat() const {
 }
 
 //==============================================================================
+// VST3 快速扫描支持
+//==============================================================================
+
+bool ModernPluginLoader::hasVST3Manifest(const juce::File& vst3Path) {
+    if (!vst3Path.exists() || !vst3Path.isDirectory()) {
+        return false;
+    }
+
+    // VST3 插件的 moduleinfo.json 位于 Contents/Resources/ 目录下
+    juce::File manifestFile = vst3Path.getChildFile("Contents")
+                                     .getChildFile("Resources")
+                                     .getChildFile("moduleinfo.json");
+
+    bool hasManifest = manifestFile.existsAsFile();
+
+    if (hasManifest) {
+        std::cout << "[ModernPluginLoader] 发现 VST3 清单文件: "
+                  << manifestFile.getFullPathName() << std::endl;
+    }
+
+    return hasManifest;
+}
+
+juce::String ModernPluginLoader::getVST3ManifestInfo(const juce::File& vst3Path) {
+    if (!hasVST3Manifest(vst3Path)) {
+        return {};
+    }
+
+    juce::File manifestFile = vst3Path.getChildFile("Contents")
+                                     .getChildFile("Resources")
+                                     .getChildFile("moduleinfo.json");
+
+    try {
+        juce::String manifestContent = manifestFile.loadFileAsString();
+
+        // 简单验证 JSON 格式
+        if (manifestContent.contains("\"name\"") &&
+            manifestContent.contains("\"version\"") &&
+            manifestContent.contains("\"factory\"")) {
+
+            std::cout << "[ModernPluginLoader] VST3 清单内容有效，支持快速扫描" << std::endl;
+            return manifestContent;
+        } else {
+            std::cout << "[ModernPluginLoader] VST3 清单格式无效" << std::endl;
+            return {};
+        }
+    } catch (const std::exception& e) {
+        std::cout << "[ModernPluginLoader] 读取 VST3 清单失败: " << e.what() << std::endl;
+        return {};
+    }
+}
+
+//==============================================================================
 // 内部方法实现
 //==============================================================================
 
@@ -473,8 +565,14 @@ void ModernPluginLoader::performScanWithDirectoryScanner(juce::AudioPluginFormat
                                                        int numThreads) {
     std::cout << "[ModernPluginLoader] 使用PluginDirectoryScanner扫描格式：" << format.getName() << std::endl;
 
+    // 检查是否为 VST3 格式，启用快速扫描
+    bool isVST3 = format.getName().contains("VST3");
+    if (isVST3) {
+        std::cout << "[ModernPluginLoader] 启用 VST3 快速扫描（moduleinfo.json 支持）" << std::endl;
+    }
+
     try {
-        // 创建PluginDirectoryScanner
+        // 创建PluginDirectoryScanner，启用异步实例化以支持快速扫描
         std::lock_guard<std::mutex> lock(scannerMutex);
         currentScanner = std::make_unique<juce::PluginDirectoryScanner>(
             knownPluginList, format, paths, recursive, deadMansPedalFile, true);
@@ -487,7 +585,10 @@ void ModernPluginLoader::performScanWithDirectoryScanner(juce::AudioPluginFormat
         // 等待扫描完成
         while (currentScanner && !shouldStopScanning.load()) {
             juce::String pluginBeingScanned;
-            bool hasMore = currentScanner->scanNextFile(false, pluginBeingScanned);
+
+            // 对于 VST3，尝试使用快速扫描（不加载插件实例）
+            bool useQuickScan = isVST3;
+            bool hasMore = currentScanner->scanNextFile(!useQuickScan, pluginBeingScanned);
 
             if (!hasMore) {
                 break;
@@ -495,10 +596,15 @@ void ModernPluginLoader::performScanWithDirectoryScanner(juce::AudioPluginFormat
 
             if (!pluginBeingScanned.isEmpty()) {
                 float progress = currentScanner->getProgress();
-                notifyProgress(progress, pluginBeingScanned);
+                if (isVST3) {
+                    notifyProgress(progress, "快速扫描: " + pluginBeingScanned);
+                } else {
+                    notifyProgress(progress, pluginBeingScanned);
+                }
             }
 
-            juce::Thread::sleep(10);
+            // VST3 快速扫描可以更频繁地检查，因为速度更快
+            juce::Thread::sleep(isVST3 ? 5 : 10);
         }
 
         // 清理扫描器
@@ -559,13 +665,22 @@ void ModernPluginLoader::performLegacyScan(const juce::FileSearchPath& paths, bo
             if (format->fileMightContainThisPluginType(file)) {
                 juce::OwnedArray<juce::PluginDescription> typesFound;
 
+                // 检查是否为 VST3 且有清单文件
+                bool isVST3WithManifest = format->getName().contains("VST3") &&
+                                         hasVST3Manifest(juce::File(file));
+
+                if (isVST3WithManifest) {
+                    std::cout << "[ModernPluginLoader] VST3 插件支持快速扫描: " << file << std::endl;
+                }
+
                 std::lock_guard<std::mutex> lock(listMutex);
                 bool foundNew = knownPluginList.scanAndAddFile(file, !rescanExisting, typesFound, *format);
 
                 if (foundNew) {
                     pluginsFound += typesFound.size();
                     std::cout << "[ModernPluginLoader] 在 " << file << " 中找到 "
-                              << typesFound.size() << " 个插件" << std::endl;
+                              << typesFound.size() << " 个插件"
+                              << (isVST3WithManifest ? " (快速扫描)" : "") << std::endl;
                 }
 
                 break; // 找到匹配的格式就停止

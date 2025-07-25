@@ -108,6 +108,9 @@ target_compile_definitions(WindsynthVSTCore PUBLIC
     JUCE_PLUGINHOST_VST3=1
     JUCE_PLUGINHOST_AU=0
     JUCE_MODAL_LOOPS_PERMITTED=0
+    # 启用 VST3 快速扫描支持
+    JUCE_VST3_HOST_CROSS_PLATFORM_UID=1
+    JUCE_VST3_MANIFEST_SUPPORT=1
 )
 
 # 为静态库添加 macOS 特定配置

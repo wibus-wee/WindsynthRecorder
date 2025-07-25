@@ -107,6 +107,13 @@ public:
     void scanDefaultPathsAsync(bool rescanExisting = false, int numThreads = 0);
 
     /**
+     * 快速扫描默认路径（优化的 VST3 扫描）
+     * @param rescanExisting 是否重新扫描已知插件
+     * @param numThreads 扫描线程数（0=自动检测）
+     */
+    void scanDefaultPathsFastAsync(bool rescanExisting = false, int numThreads = 0);
+
+    /**
      * 扫描单个文件或目录（用于特殊情况）
      * @param fileOrDirectory 文件或目录路径
      * @param rescanExisting 是否重新扫描已知插件
@@ -302,6 +309,24 @@ public:
      * @return 格式名称到数量的映射
      */
     std::map<juce::String, int> getPluginCountByFormat() const;
+
+    //==============================================================================
+    // VST3 快速扫描支持
+    //==============================================================================
+
+    /**
+     * 检查 VST3 插件是否支持快速扫描（有 moduleinfo.json）
+     * @param vst3Path VST3 插件路径
+     * @return 是否支持快速扫描
+     */
+    static bool hasVST3Manifest(const juce::File& vst3Path);
+
+    /**
+     * 获取 VST3 插件的清单信息
+     * @param vst3Path VST3 插件路径
+     * @return 清单信息，失败时返回空字符串
+     */
+    static juce::String getVST3ManifestInfo(const juce::File& vst3Path);
 
 private:
     //==============================================================================

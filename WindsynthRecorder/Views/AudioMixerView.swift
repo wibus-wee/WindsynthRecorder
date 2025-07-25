@@ -337,7 +337,65 @@ struct AudioMixerView: View {
 
                 Spacer()
 
-                Button(action: { showingVSTProcessor = true }) {
+                Menu {
+                    // 最近使用的插件
+                    if !recentPlugins.isEmpty {
+                        Section("最近的项目") {
+                            ForEach(recentPlugins.prefix(5), id: \.identifier) { plugin in
+                                Button(action: {
+                                    loadPlugin(plugin)
+                                }) {
+                                    HStack {
+                                        Text(plugin.name)
+                                    }
+                                }
+                            }
+                        }
+
+                        Divider()
+                    }
+
+                    // 按类别分组的插件
+                    ForEach(pluginCategories, id: \.self) { category in
+                        Menu(category) {
+                            ForEach(pluginsInCategory(category), id: \.identifier) { plugin in
+                                Button(action: {
+                                    loadPlugin(plugin)
+                                }) {
+                                    HStack {
+                                        Text(plugin.name)
+                                        Spacer()
+                                        Text(plugin.manufacturer)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Divider()
+
+                    // 管理插件选项
+                    Button(action: { showingVSTProcessor = true }) {
+                        HStack {
+                            Image(systemName: "gear")
+                            Text("管理插件...")
+                        }
+                    }
+
+                    Button(action: {
+                        audioGraphService.scanPluginsAsync { foundPlugins in
+                            print("🔍 扫描完成，找到 \(foundPlugins) 个插件")
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: audioGraphService.isScanning ? "arrow.clockwise" : "magnifyingglass")
+                            Text(audioGraphService.isScanning ? "扫描中..." : "扫描插件")
+                        }
+                    }
+                    .disabled(audioGraphService.isScanning)
+
+                } label: {
                     Image(systemName: "plus.circle.fill")
                         .foregroundColor(.blue)
                 }
@@ -846,6 +904,35 @@ struct AudioMixerView: View {
             !plugin.name.contains("Audio Output") &&
             !plugin.name.contains("MIDI Input") &&
             !plugin.name.contains("MIDI Output")
+        }
+    }
+
+    /// 获取可用插件的类别列表
+    private var pluginCategories: [String] {
+        let categories = Set(audioGraphService.availablePlugins.map { $0.category })
+        return Array(categories).sorted()
+    }
+
+    /// 获取最近使用的插件（基于已加载的插件类型）
+    private var recentPlugins: [PluginDescription] {
+        // 简单实现：返回前几个可用插件作为"最近使用"
+        // 在实际应用中，这里应该从用户偏好设置或历史记录中获取
+        return Array(audioGraphService.availablePlugins.prefix(5))
+    }
+
+    /// 根据类别获取插件列表
+    private func pluginsInCategory(_ category: String) -> [PluginDescription] {
+        return audioGraphService.availablePlugins.filter { $0.category == category }
+    }
+
+    /// 加载插件的便捷方法
+    private func loadPlugin(_ plugin: PluginDescription) {
+        audioGraphService.loadPlugin(identifier: plugin.identifier) { success, error in
+            if success {
+                print("✅ 成功加载插件: \(plugin.name)")
+            } else {
+                print("❌ 加载插件失败: \(plugin.name) - \(error ?? "未知错误")")
+            }
         }
     }
 

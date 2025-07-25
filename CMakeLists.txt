@@ -56,19 +56,22 @@ add_library(WindsynthVSTCore STATIC
     Libraries/JUCESupport/AudioGraph/Management/PresetManager.cpp
 
     # 原有的引擎门面和桥接层
-    Libraries/JUCESupport/WindsynthEngineFacade.cpp
-    Libraries/JUCESupport/AudioGraphBridge.mm
+#    Libraries/JUCESupport/WindsynthEngineFacade.cpp
+#    Libraries/JUCESupport/AudioGraphBridge.mm
 
-    # 重构后的新架构组件
+    # 新架构组件
     Libraries/JUCESupport/Engine/Core/EngineContext.cpp
     Libraries/JUCESupport/Engine/Core/EngineObserver.cpp
     Libraries/JUCESupport/Engine/Managers/EngineLifecycleManager.cpp
     Libraries/JUCESupport/Engine/Managers/AudioFileManager.cpp
     Libraries/JUCESupport/Engine/Managers/NodeParameterController.cpp
-    Libraries/JUCESupport/Engine/RefactoredWindsynthEngineFacade.cpp
+    Libraries/JUCESupport/Engine/WindsynthEngineFacade.cpp
 
-    # 重构后的模块化桥接层
-    Libraries/JUCESupport/Engine/Bridge/RefactoredBridge.mm
+    # 模块化桥接层
+    Libraries/JUCESupport/Engine/Bridge/EngineBridge.mm
+    Libraries/JUCESupport/Engine/Bridge/AudioFileBridge.mm
+    Libraries/JUCESupport/Engine/Bridge/PluginBridge.mm
+    Libraries/JUCESupport/Engine/Bridge/ParameterBridge.mm
 )
 
 # 确保静态库在临时应用生成头文件后构建

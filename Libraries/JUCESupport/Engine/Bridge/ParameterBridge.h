@@ -9,7 +9,7 @@
 #ifndef ParameterBridge_h
 #define ParameterBridge_h
 
-#include "RefactoredEngineBridge.h"
+#include "EngineBridge.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,7 +32,7 @@ typedef struct {
     bool isDiscrete;
     int numSteps;
     char units[32];
-} RefactoredParameterInfo;
+} ParameterInfo_C;
 
 //==============================================================================
 // 参数控制
@@ -46,10 +46,10 @@ typedef struct {
  * @param value 参数值（0.0-1.0）
  * @return 成功返回true
  */
-bool RefactoredEngine_SetNodeParameter(RefactoredEngineHandle handle, 
-                                      uint32_t nodeID, 
-                                      int parameterIndex, 
-                                      float value);
+bool Engine_SetNodeParameter(EngineHandle handle,
+                             uint32_t nodeID,
+                             int parameterIndex,
+                             float value);
 
 /**
  * 获取节点参数
@@ -58,9 +58,9 @@ bool RefactoredEngine_SetNodeParameter(RefactoredEngineHandle handle,
  * @param parameterIndex 参数索引
  * @return 参数值（0.0-1.0），失败返回-1.0
  */
-float RefactoredEngine_GetNodeParameter(RefactoredEngineHandle handle, 
-                                       uint32_t nodeID, 
-                                       int parameterIndex);
+float Engine_GetNodeParameter(EngineHandle handle,
+                             uint32_t nodeID,
+                             int parameterIndex);
 
 /**
  * 获取节点参数数量
@@ -68,7 +68,7 @@ float RefactoredEngine_GetNodeParameter(RefactoredEngineHandle handle,
  * @param nodeID 节点ID
  * @return 参数数量
  */
-int RefactoredEngine_GetNodeParameterCount(RefactoredEngineHandle handle, uint32_t nodeID);
+int Engine_GetNodeParameterCount(EngineHandle handle, uint32_t nodeID);
 
 /**
  * 获取节点参数信息
@@ -78,10 +78,10 @@ int RefactoredEngine_GetNodeParameterCount(RefactoredEngineHandle handle, uint32
  * @param info 输出参数信息
  * @return 成功返回true
  */
-bool RefactoredEngine_GetNodeParameterInfo(RefactoredEngineHandle handle, 
-                                          uint32_t nodeID, 
-                                          int parameterIndex, 
-                                          RefactoredParameterInfo* info);
+bool Engine_GetNodeParameterInfo(EngineHandle handle,
+                                uint32_t nodeID,
+                                int parameterIndex,
+                                ParameterInfo_C* info);
 
 /**
  * 重置节点参数到默认值
@@ -90,9 +90,9 @@ bool RefactoredEngine_GetNodeParameterInfo(RefactoredEngineHandle handle,
  * @param parameterIndex 参数索引，-1表示重置所有参数
  * @return 成功返回true
  */
-bool RefactoredEngine_ResetNodeParameter(RefactoredEngineHandle handle, 
-                                        uint32_t nodeID, 
-                                        int parameterIndex);
+bool Engine_ResetNodeParameter(EngineHandle handle,
+                              uint32_t nodeID,
+                              int parameterIndex);
 
 /**
  * 获取节点的所有参数信息
@@ -102,10 +102,10 @@ bool RefactoredEngine_ResetNodeParameter(RefactoredEngineHandle handle,
  * @param maxCount 数组最大容量
  * @return 实际返回的参数数量
  */
-int RefactoredEngine_GetAllParameterInfo(RefactoredEngineHandle handle, 
-                                        uint32_t nodeID, 
-                                        RefactoredParameterInfo* parameters, 
-                                        int maxCount);
+int Engine_GetAllParameterInfo(EngineHandle handle,
+                              uint32_t nodeID,
+                              ParameterInfo_C* parameters,
+                              int maxCount);
 
 #ifdef __cplusplus
 }

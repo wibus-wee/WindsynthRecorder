@@ -1,9 +1,9 @@
 //
-//  RefactoredWindsynthEngineFacade.hpp
+//  WindsynthEngineFacade.hpp
 //  WindsynthRecorder
 //
 //  Created by AI Assistant
-//  重构后的轻量级引擎门面类
+//  轻量级引擎门面类
 //
 
 #pragma once
@@ -32,21 +32,21 @@
 namespace WindsynthVST::Engine {
 
 /**
- * 重构后的 WindsynthEngineFacade
- * 
+ * WindsynthEngineFacade
+ *
  * 这是一个轻量级的门面类，遵循以下设计原则：
  * - 单一职责原则：只负责协调各个管理器
  * - 开闭原则：通过接口扩展功能
  * - 依赖倒置原则：依赖抽象而非具体实现
  * - 接口隔离原则：每个管理器都有专门的接口
- * 
+ *
  * 主要改进：
  * 1. 将原有的1200+行代码拆分为多个专门的管理器
  * 2. 使用依赖注入提高可测试性
  * 3. 应用观察者模式处理事件通知
  * 4. 提供清晰的模块边界和职责分离
  */
-class RefactoredWindsynthEngineFacade {
+class WindsynthEngineFacade {
 public:
     //==============================================================================
     // 构造函数和析构函数
@@ -55,12 +55,12 @@ public:
     /**
      * 构造函数
      */
-    RefactoredWindsynthEngineFacade();
-    
+    WindsynthEngineFacade();
+
     /**
      * 析构函数
      */
-    ~RefactoredWindsynthEngineFacade();
+    ~WindsynthEngineFacade();
     
     //==============================================================================
     // 引擎生命周期管理（委托给 EngineLifecycleManager）
@@ -108,12 +108,51 @@ public:
     bool setNodeEnabled(uint32_t nodeID, bool enabled);
     
     //==============================================================================
+    // 离线渲染功能
+    //==============================================================================
+
+    /**
+     * 离线渲染设置结构
+     */
+    struct RenderSettings {
+        int32_t sampleRate = 44100;
+        int32_t bitDepth = 24;
+        int32_t numChannels = 2;
+        bool normalizeOutput = false;
+        bool includePluginTails = false;
+
+        enum class Format {
+            WAV = 0,
+            AIFF = 1
+        };
+        Format format = Format::WAV;
+    };
+
+    /**
+     * 渲染进度回调类型
+     */
+    using RenderProgressCallback = std::function<void(float progress, const std::string& message)>;
+
+    /**
+     * 离线渲染音频文件
+     * @param inputPath 输入文件路径
+     * @param outputPath 输出文件路径
+     * @param settings 渲染设置
+     * @param progressCallback 进度回调（可选）
+     * @return 成功返回true
+     */
+    bool renderToFile(const std::string& inputPath,
+                     const std::string& outputPath,
+                     const RenderSettings& settings,
+                     RenderProgressCallback progressCallback = nullptr);
+
+    //==============================================================================
     // 事件回调设置（向后兼容）
     //==============================================================================
-    
+
     using EngineStateCallback = std::function<void(Core::EngineState state, const std::string& message)>;
     using ErrorCallback = std::function<void(const std::string& error)>;
-    
+
     void setStateCallback(EngineStateCallback callback);
     void setErrorCallback(ErrorCallback callback);
     
@@ -167,7 +206,7 @@ private:
     
     void initializeManagers();
     
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(RefactoredWindsynthEngineFacade)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WindsynthEngineFacade)
 };
 
 } // namespace WindsynthVST::Engine

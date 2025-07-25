@@ -66,6 +66,9 @@ add_library(WindsynthVSTCore STATIC
     Libraries/JUCESupport/Engine/Managers/AudioFileManager.cpp
     Libraries/JUCESupport/Engine/Managers/NodeParameterController.cpp
     Libraries/JUCESupport/Engine/RefactoredWindsynthEngineFacade.cpp
+
+    # 重构后的模块化桥接层
+    Libraries/JUCESupport/Engine/Bridge/RefactoredBridge.mm
 )
 
 # 确保静态库在临时应用生成头文件后构建

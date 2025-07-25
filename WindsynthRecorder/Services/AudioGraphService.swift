@@ -194,7 +194,7 @@ class AudioGraphService: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
 
     /// 音频引擎句柄（真实的C++引擎）
-    private var engineHandle: WindsynthEngineHandle?
+    private var engineHandle: EngineHandle?
 
     /// 统计信息更新定时器
     private var statisticsTimer: Timer?
@@ -470,7 +470,6 @@ class AudioGraphService: ObservableObject {
         Engine_LoadPluginByIdentifier(
             handle,
             identifier,
-            displayName.isEmpty ? nil : displayName,
             { nodeID, success, error, userData in
                 // C回调函数
                 guard let userData = userData else { return }

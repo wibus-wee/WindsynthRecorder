@@ -12,7 +12,6 @@
 // AudioGraphBridge接口 - 现代化音频引擎
 // ============================================================================
 
-// 导入AudioGraphBridge C接口
-#include "AudioGraphBridge.h"
+#include "Bridge.h"
 
 #endif /* WindsynthRecorder_Bridging_Header_h */

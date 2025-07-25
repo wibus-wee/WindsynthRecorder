@@ -55,9 +55,23 @@ add_library(WindsynthVSTCore STATIC
     Libraries/JUCESupport/AudioGraph/Management/AudioIOManager.cpp
     Libraries/JUCESupport/AudioGraph/Management/PresetManager.cpp
 
-    # 新的引擎门面和桥接层
-    Libraries/JUCESupport/WindsynthEngineFacade.cpp
-    Libraries/JUCESupport/AudioGraphBridge.mm
+    # 原有的引擎门面和桥接层
+#    Libraries/JUCESupport/WindsynthEngineFacade.cpp
+#    Libraries/JUCESupport/AudioGraphBridge.mm
+
+    # 新架构组件
+    Libraries/JUCESupport/Engine/Core/EngineContext.cpp
+    Libraries/JUCESupport/Engine/Core/EngineObserver.cpp
+    Libraries/JUCESupport/Engine/Managers/EngineLifecycleManager.cpp
+    Libraries/JUCESupport/Engine/Managers/AudioFileManager.cpp
+    Libraries/JUCESupport/Engine/Managers/NodeParameterController.cpp
+    Libraries/JUCESupport/Engine/WindsynthEngineFacade.cpp
+
+    # 模块化桥接层
+    Libraries/JUCESupport/Engine/Bridge/EngineBridge.mm
+    Libraries/JUCESupport/Engine/Bridge/AudioFileBridge.mm
+    Libraries/JUCESupport/Engine/Bridge/PluginBridge.mm
+    Libraries/JUCESupport/Engine/Bridge/ParameterBridge.mm
 )
 
 # 确保静态库在临时应用生成头文件后构建
@@ -67,6 +81,7 @@ add_dependencies(WindsynthVSTCore WindsynthVSTCore_Temp)
 target_include_directories(WindsynthVSTCore PUBLIC
     Libraries/JUCESupport/AudioGraph
     Libraries/JUCESupport
+    Libraries/JUCESupport/Engine
     $<TARGET_PROPERTY:WindsynthVSTCore_Temp,JUCE_GENERATED_SOURCES_DIRECTORY>
 )
 
@@ -93,6 +108,9 @@ target_compile_definitions(WindsynthVSTCore PUBLIC
     JUCE_PLUGINHOST_VST3=1
     JUCE_PLUGINHOST_AU=0
     JUCE_MODAL_LOOPS_PERMITTED=0
+    # 启用 VST3 快速扫描支持
+    JUCE_VST3_HOST_CROSS_PLATFORM_UID=1
+    JUCE_VST3_MANIFEST_SUPPORT=1
 )
 
 # 为静态库添加 macOS 特定配置
